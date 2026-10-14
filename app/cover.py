@@ -48,7 +48,7 @@ def _get(url, timeout=10):
 
 
 def lookup(title, duration=None):
-    """Capa na loja do iTunes: (bytes da imagem 600x600, crédito) ou (None, None) se não achar com
+    """Capa na loja do iTunes: (bytes da imagem 1200x1200, crédito) ou (None, None) se não achar com
     segurança (nome da música e do artista batendo, duração parecida quando a loja informa)."""
     artist, track = LA.guess(title)
     if not track:
@@ -74,7 +74,7 @@ def lookup(title, duration=None):
         artist_ok = not artist or LA._sim(it.get("artistName"), artist) >= 0.6
         art = it.get("artworkUrl100")
         if name_ok and artist_ok and art:
-            big = art.replace("100x100bb", "600x600bb")
+            big = art.replace("100x100bb", "1200x1200bb")  # grande: também vira o fundo do Modo Show
             credit = {"fonte": "iTunes", "artista": it.get("artistName"), "album": it.get("collectionName"),
                       "musica": it.get("trackName")}
             return _get(big), credit

@@ -685,6 +685,13 @@ h1, h2, h3 { margin: 0; }
 .show { position: fixed; inset: 0; z-index: 200; display: grid; grid-template-rows: auto minmax(0, 1fr) clamp(200px, 36vh, 340px) auto auto; background: #000; color: var(--text); overflow: hidden; isolation: isolate; }
 .show-canvas { position: absolute; inset: 0; width: 100%; height: 100%; z-index: -1; display: block; }
 .show-media { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: -3; }
+/* foto do artista: puxa para o alto (onde costuma estar o rosto) e anda devagar, como numa câmera */
+.show-media.artist { object-position: center 22%; animation: artistdrift 28s ease-in-out infinite alternate; }
+@keyframes artistdrift { from { transform: scale(1.04) translate(-0.6%, 0.4%); } to { transform: scale(1.12) translate(0.8%, -0.8%); } }
+/* com a foto do artista, quem pulsa no 1 do compasso é a sombra por cima (a foto clareia um instante) */
+.show-shade.beat { animation: shadebeat .35s ease-out; }
+@keyframes shadebeat { from { opacity: .7; } to { opacity: 1; } }
+.menu > button:disabled { opacity: .4; cursor: not-allowed; }
 .show-media.beat { animation: bgbeat .35s ease-out; }
 @keyframes bgbeat { from { transform: scale(1.015); } to { transform: scale(1); } }
 .show-shade { position: absolute; inset: 0; z-index: -2; background: linear-gradient(rgba(0, 0, 0, .3), rgba(0, 0, 0, .55) 60%, rgba(0, 0, 0, .85)); }

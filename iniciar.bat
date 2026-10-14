@@ -23,6 +23,9 @@ if exist ".venv\Scripts\python.exe" goto :componentes
 rem ---------------------------------------------------------------- 1. Python
 echo    [1/4] Procurando o Python 3.12...
 set "PY="
+rem o Python que o instalador baixou fica na pasta do programa
+if exist "%~dp0python\tools\python.exe" set "PY=%~dp0python\tools\python.exe"
+if defined PY goto :ambiente
 for /f "delims=" %%p in ('py -3.12 -c "import sys; print(sys.executable)" 2^>nul') do set "PY=%%p"
 if not defined PY if exist "%LOCALAPPDATA%\Programs\Python\Python312\python.exe" set "PY=%LOCALAPPDATA%\Programs\Python\Python312\python.exe"
 if defined PY goto :ambiente

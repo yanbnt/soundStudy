@@ -101,6 +101,21 @@ Acordes por tempo usam Viterbi com custo de troca por posição no compasso (bar
 - **12/8**: um tempo da análise = semínima pontuada (`beat_ql = 1,5`).
 - **Windows**: caminhos com mais de 260 caracteres quebram o Python; scripts de teste vão em `%TEMP%`. No PowerShell não existe `&&`.
 
+## Instalador do Windows (`instalador/`)
+
+- `PautaViva.iss` (Inno Setup 6.7, modo escuro) gera `dist\PautaViva-Setup-<versão>.exe` (38 MB), que vai para as
+  **Releases** do GitHub (o `dist/` fica fora do Git). Telas: boas-vindas, **Sobre o programa** (objetivo 100%
+  didático, o que precisa de internet, requisitos mínimos e recomendados), **Termo de uso e responsabilidade**
+  (aceito/não aceito; inclui que não nos responsabilizamos pela divulgação não autorizada das partituras), pasta,
+  atalho, instalação e conclusão. Desinstalador em "Aplicativos" (pergunta se apaga as músicas transcritas).
+- Instala por usuário em `%LOCALAPPDATA%\Programs\PautaViva` (sem administrador). Baixa o **Python 3.12.10 oficial
+  do NuGet** (conferido pelo SHA-256) para `python\tools`, cria o `.venv`, instala os componentes (PyTorch com CUDA
+  se houver `nvidia-smi`) e grava os marcadores que o `iniciar.bat` usa (`pauta_requirements.txt`, `atalho_criado`).
+- `gerar.py` gera as imagens (marca em P&B) e os textos RTF; o nome do app fica em `NOME` lá e em `AppName` no `.iss`.
+- A extração automática do Inno não entra em subpastas quando o arquivo é baixado: o Python é extraído no `[Code]`.
+- O Inno Setup pede licença comercial quando usado para vender software.
+- Testado neste PC com instalação silenciosa numa pasta temporária e desinstalação (limpa pasta, atalho e registro).
+
 ## Rodar no notebook com placa de vídeo
 
 1. Instalar o Python 3.12 (python.org, marcar "Add to PATH").
@@ -137,6 +152,16 @@ Pronto e testado:
 - Cursor preciso (motor de áudio sincronizado por amostra + instante real das notas), testado no navegador: posição certa em 229 de 230 quadros, velocidade reduzida, repetição sem buraco e metrônomo.
 - Mesa de som profissional (ver Frontend), testada no navegador: arrastar pontos do gráfico, rodinha, cortes, mixagens salvas, "Zerar tudo".
 - Corrigido: ao abrir outra música, a frase da letra da música anterior ficava na tela até a nova começar (`resetLyrics`).
+- **Capa e cor da música** (`app/cover.py`): capa embutida no arquivo ou da loja do iTunes (busca pública, 1200×1200
+  quando há; evita coletânea de vários artistas); a cor de destaque é a mais viva da capa (votação por fatias da roda de
+  cores). A tela usa `--song`, `--song-hi`, `--song-head`, `--song-deep` e `--song-ink`: topo da página em degradê (como
+  nos players de música), botões, chips, barras, karaokê, cursor, animação e mesa de som. Sem capa: cor do tom pelo
+  círculo das quintas. Para vender: licença das capas ou desligar `BUSCAR_NA_INTERNET`.
+- **Modo Show**: fundo padrão é a **foto do artista** (a capa), com movimento lento e pulso no 1 do compasso; mesa,
+  roda e vídeo/foto próprio continuam como opção (escolha em `localStorage` `pv.fundo`).
+- Identidade: o usuário pediu cor (capa) em cima da base preta; tirou o "leia tocando" da marca.
+- Mesa de samba: violão clássico em pé na ponta da mesa (o deitado parecia "tábua"); sem cerveja e sem garrafa
+  (o usuário não gostou). Ícones de cada instrumento na mesa de som.
 - Separação: o analisador da mesa mostra que o baixo do modo rápido (Demucs) quase não tem som acima de ~300 Hz (fica "abafado"); o modo Máxima (BS-RoFormer) é a solução, no notebook com placa NVIDIA.
 
 Próximos passos (nesta ordem):

@@ -12,6 +12,9 @@ data/models/
 # Preferências locais (modo de qualidade)
 data/config.json
 
+# Instalador gerado (vai para as versões/Releases do GitHub, não para o código)
+dist/
+
 # Logs e temporários
 *.log
 *.tmp

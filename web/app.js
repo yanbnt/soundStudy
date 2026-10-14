@@ -1013,9 +1013,10 @@
     }
     if (bi !== S.lastBeat) {
       if (S.showOn && S.bgMedia && S.playing && beatIn === 0) { // o fundo "pulsa" no 1 do compasso
-        S.bgMedia.classList.remove('beat');
-        void S.bgMedia.offsetWidth;
-        S.bgMedia.classList.add('beat');
+        const el = S.bgMedia.classList.contains('artist') ? $('#showShade') : S.bgMedia; // a foto já se move devagar
+        el.classList.remove('beat');
+        void el.offsetWidth;
+        el.classList.add('beat');
       }
       // no Modo Show valendo pontos, cada tempo que termina é conferido
       if (S.showOn && S.gameOn && S.game.mode === 'chords' && S.playing && S.lastBeat >= 0 && bi === S.lastBeat + 1) {
@@ -1402,30 +1403,62 @@
     $('#stripMarks').appendChild(el);
   }
 
-  // fundo do show: a mesa de samba (padrão), a roda com músicos ou um vídeo/foto da própria pessoa.
-  // A cena escolhida fica guardada; o vídeo/foto vale até fechar o app.
+  // Fundo do show: a foto do artista (a capa da música, padrão), a mesa de samba, a roda com músicos ou um
+  // vídeo/foto da própria pessoa. A escolha fica guardada; o vídeo/foto vale até fechar o app. Música sem
+  // capa cai na mesa de samba.
+  // (a chave antiga, pv.scene, era gravada sozinha com "mesa": por isso a escolha mudou de chave)
   function savedScene() {
-    try { return localStorage.getItem('pv.scene') === 'roda' ? 'roda' : 'mesa'; } catch (_) { return 'mesa'; }
+    try {
+      const v = localStorage.getItem('pv.fundo');
+      return v === 'mesa' || v === 'roda' ? v : 'capa';
+    } catch (_) { return 'capa'; }
   }
 
   function markBg() {
+    $('#bgCapa').disabled = !coverSrc(S.playerMeta);
     document.querySelectorAll('#bgMenu [data-scene]').forEach((b) => {
-      b.classList.toggle('on', !S.bgMedia && b.dataset.scene === S.sceneKind);
+      b.classList.toggle('on', !S.bgUrl && b.dataset.scene === S.bgKind);
     });
   }
 
+  // cena desenhada (mesa ou roda), que fica por trás quando o fundo é uma foto ou vídeo
   function setScene(kind) {
     if (S.stage && S.sceneKind === kind) return;
     if (S.stage) S.stage.destroy();
     S.sceneKind = kind;
     const opts = S.visualHigh ? { scale: 1, fps: 60 } : { scale: 0.6, fps: 30 };
     S.stage = kind === 'roda' ? new StageScene($('#showCanvas'), showState, opts) : new MesaScene($('#showCanvas'), showState, opts);
-    try { localStorage.setItem('pv.scene', kind); } catch (_) { /* sem memória no navegador: tudo bem */ }
     if (S.showOn) {
       S.stage.resize();
       focusStage();
       S.stage.start();
     }
+  }
+
+  // põe o fundo escolhido: a capa da música aberta ou a cena desenhada
+  function applyBg() {
+    if (S.bgUrl) return; // o vídeo/foto da pessoa manda até fechar o app
+    const img = $('#showImage');
+    const src = S.bgKind === 'capa' ? coverSrc(S.playerMeta) : null;
+    if (src) {
+      if (img.getAttribute('src') !== src) img.src = src;
+      img.hidden = false;
+      img.classList.add('artist');
+      $('#showShade').hidden = false;
+      $('#showCanvas').style.visibility = 'hidden';
+      if (S.stage) S.stage.paused = true;
+      S.bgMedia = img;
+    } else {
+      img.removeAttribute('src');
+      img.hidden = true;
+      img.classList.remove('artist');
+      $('#showShade').hidden = true;
+      $('#showCanvas').style.visibility = '';
+      S.bgMedia = null;
+      setScene(S.bgKind === 'roda' ? 'roda' : 'mesa');
+      if (S.showOn && S.stage) S.stage.paused = false;
+    }
+    markBg();
   }
 
   function useScene(kind) {
@@ -1435,14 +1468,11 @@
     v.pause();
     v.removeAttribute('src');
     v.hidden = true;
-    $('#showImage').removeAttribute('src');
-    $('#showImage').hidden = true;
-    $('#showShade').hidden = true;
-    $('#showCanvas').style.visibility = '';
-    S.bgMedia = null;
-    if (kind) setScene(kind);
-    markBg();
-    if (S.showOn) S.stage.paused = false;
+    if (kind) {
+      S.bgKind = kind;
+      try { localStorage.setItem('pv.fundo', kind); } catch (_) { /* sem memória no navegador: tudo bem */ }
+    }
+    applyBg();
   }
 
   function useMedia(file) {
@@ -1451,6 +1481,11 @@
     S.bgUrl = URL.createObjectURL(file);
     const video = file.type.startsWith('video/');
     const el = video ? $('#showVideo') : $('#showImage');
+    if (!video) {
+      $('#showImage').classList.remove('artist');
+    } else {
+      $('#showImage').hidden = true;
+    }
     el.src = S.bgUrl;
     el.hidden = false;
     if (video) el.play().catch(() => {});
@@ -1533,6 +1568,7 @@
     $('#showResult').hidden = true;
     $('#showCount').hidden = true;
     $('#showScore').hidden = true;
+    applyBg(); // a foto do artista é a da música que está abrindo
     S.stage.resize();
     focusStage();
     S.stage.start();
@@ -3278,7 +3314,8 @@
     S.stageViz = new Visualizer($('#stageCanvas'), vizState, { scale: S.visualHigh ? 1 : 0.5, bars: 96 });
     S.heroViz.start();
     S.stageViz.start();
-    setScene(savedScene());
+    S.bgKind = savedScene();
+    setScene(S.bgKind === 'roda' ? 'roda' : 'mesa');
     markBg();
     S.homeScene = new MesaScene($('#homeCanvas'), showState, S.visualHigh ? { scale: 1, fps: 60 } : { scale: 0.6 });
     S.homeScene.start();
