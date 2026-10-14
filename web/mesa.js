@@ -1,7 +1,7 @@
 // "Mesa de samba" sem pessoas, em preto e branco: noite de lua sobre a baía, morros com as luzes
-// das casas, o bondinho, um varal de lâmpadas e, na mesa, chapéu, tamborim, pandeiro, cavaquinho,
-// chopp e uma folha de partitura. Tudo desenhado aqui. Mexe com a música: as lâmpadas pulsam no
-// tempo e acendem em onda na troca de acorde, as platinelas brilham, o chopp borbulha e o caminho
+// das casas, o bondinho, um varal de lâmpadas e, na mesa, chapéu, tamborim, pandeiro, violão,
+// um violão em pé e uma partitura, com luz e sombra. Tudo desenhado aqui. Mexe com a música: as lâmpadas pulsam no
+// tempo e acendem em onda na troca de acorde, as platinelas brilham e o caminho
 // da lua no mar cintila com o som; nos combos do jogo sobem fogos sobre a baía.
 (function () {
   'use strict';
@@ -12,7 +12,6 @@
   const HORIZON = 232, TABLE = 318;
   const MOON = { x: 960, y: 112, r: 24 };
   const PANDEIRO = { x: 590, y: 418, rx: 108, ry: 34 };
-  const GLASS = { x: 1240, top: 352, bottom: 468, w0: 50, w1: 40 };
   const CABLE = { x0: 1046, y0: 152, x1: 1166, y1: 78 };
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
   const seeded = (seed) => {
@@ -81,10 +80,9 @@
       this.glints = Array.from({ length: 50 }, () => ({
         x: rand() * 2600 - 500, y: HORIZON + 4 + rand() * (TABLE - HORIZON - 8), w: 6 + rand() * 22, ph: rand() * TAU, sp: 0.5 + rand() * 1.4,
       }));
-      this.bubbles = Array.from({ length: 18 }, () => ({ x: rand(), y: rand(), r: 0.8 + rand() * 1.6, sp: 0.25 + rand() * 0.5 }));
       this.jingles = Array.from({ length: 7 }, (_, i) => {
         const a = Math.PI * (0.14 + (i * 0.72) / 6);
-        return { x: PANDEIRO.x + Math.cos(a) * PANDEIRO.rx, y: PANDEIRO.y + 6 + Math.sin(a) * PANDEIRO.ry };
+        return { x: PANDEIRO.x + Math.cos(a) * PANDEIRO.rx, y: PANDEIRO.y + 7.5 + Math.sin(a) * PANDEIRO.ry };
       });
       this.ro = new ResizeObserver(() => this.resize());
       this.ro.observe(canvas);
@@ -274,10 +272,20 @@
 
     paintTable(ctx) {
       const k = this.k;
+      const rand = seeded(42);
       const shade = (blur, dy) => { ctx.shadowColor = 'rgba(0,0,0,0.75)'; ctx.shadowBlur = blur * k; ctx.shadowOffsetY = dy * k; };
-      const noShade = () => { ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0; };
+      const noShade = () => { ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0; };
       const ellipse = (x, y, rx, ry, fill) => { ctx.fillStyle = fill; ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, TAU); ctx.fill(); };
-
+      // sombra macia no tampo: desenha a forma longe e traz só a sombra de volta (funciona em todo navegador)
+      const floorShadow = (x, y, rx, ry, blur, a) => {
+        ctx.save();
+        ctx.shadowColor = `rgba(0,0,0,${a})`;
+        ctx.shadowBlur = blur * k;
+        ctx.shadowOffsetX = 10000 * k;
+        ctx.fillStyle = '#000';
+        ctx.beginPath(); ctx.ellipse(x - 10000, y, rx, ry, 0, 0, TAU); ctx.fill();
+        ctx.restore();
+      };
       // tampo de madeira escura, com a luz do bar no meio e os veios em perspectiva
       ctx.fillStyle = '#121212';
       ctx.fillRect(-3000, TABLE, 7600, 1200);
@@ -295,191 +303,11 @@
       ctx.fillStyle = 'rgba(255,255,255,0.14)';
       ctx.fillRect(-3000, TABLE - 1, 7600, 2);
 
-      // folha de partitura
-      ctx.save();
-      ctx.translate(800, 454);
-      ctx.rotate(-0.06);
-      shade(22, 8);
-      const paper = ctx.createLinearGradient(0, -46, 0, 46);
-      paper.addColorStop(0, '#f2f2f2');
-      paper.addColorStop(1, '#c9c9c9');
-      ctx.fillStyle = paper;
-      ctx.fillRect(-125, -45, 250, 90);
-      noShade();
-      ctx.strokeStyle = 'rgba(0,0,0,0.55)';
-      ctx.lineWidth = 0.9;
-      for (const y0 of [-31, 7]) {
-        for (let l = 0; l < 5; l++) { ctx.beginPath(); ctx.moveTo(-108, y0 + l * 5); ctx.lineTo(108, y0 + l * 5); ctx.stroke(); }
-        ctx.beginPath(); ctx.moveTo(-108, y0); ctx.lineTo(-108, y0 + 20); ctx.moveTo(108, y0); ctx.lineTo(108, y0 + 20); ctx.stroke();
-      }
-      ctx.fillStyle = 'rgba(0,0,0,0.85)';
-      [[-84, -21], [-62, -26], [-40, -18], [-18, -23], [8, -16], [30, -28], [52, -21], [78, -24],
-        [-80, 15], [-54, 19], [-30, 12], [-4, 17], [24, 10], [50, 22], [76, 15]].forEach(([x, y]) => {
-        ctx.beginPath(); ctx.ellipse(x, y, 3.3, 2.4, -0.4, 0, TAU); ctx.fill();
-        ctx.fillRect(x + 2.4, y - 15, 1, 15);
-      });
-      ctx.restore();
-
-      // tamborim com a baqueta
-      shade(16, 6);
-      ellipse(128, 457, 50, 16, '#262626');
-      noShade();
-      ctx.fillStyle = '#262626';
-      ctx.fillRect(78, 449, 100, 8);
-      ellipse(128, 449, 50, 16, '#1a1a1a');
-      const tskin = ctx.createRadialGradient(118, 444, 2, 128, 449, 46);
-      tskin.addColorStop(0, '#ececec');
-      tskin.addColorStop(1, '#a9a9a9');
-      ellipse(128, 449, 44, 13.5, tskin);
-      ctx.lineCap = 'round';
-      ctx.strokeStyle = '#080808';
-      ctx.lineWidth = 6;
-      ctx.beginPath(); ctx.moveTo(62, 486); ctx.lineTo(214, 432); ctx.stroke();
-      ctx.strokeStyle = 'rgba(255,255,255,0.35)';
-      ctx.lineWidth = 1.2;
-      ctx.beginPath(); ctx.moveTo(66, 483); ctx.lineTo(212, 430); ctx.stroke();
-
-      // chapéu panamá
-      const hx = 300, hy = 392;
-      shade(24, 10);
-      const brim = ctx.createLinearGradient(0, hy - 30, 0, hy + 30);
-      brim.addColorStop(0, '#dcdcdc');
-      brim.addColorStop(1, '#9a9a9a');
-      ellipse(hx, hy, 128, 30, brim);
-      noShade();
-      ellipse(hx + 4, hy - 1, 76, 17, 'rgba(0,0,0,0.22)');
-      const crown = ctx.createLinearGradient(hx - 70, 0, hx + 70, 0);
-      crown.addColorStop(0, '#a9a9a9');
-      crown.addColorStop(0.3, '#e4e4e4');
-      crown.addColorStop(1, '#8c8c8c');
-      ctx.fillStyle = crown;
-      ctx.beginPath();
-      ctx.moveTo(hx - 68, hy - 6);
-      ctx.bezierCurveTo(hx - 71, hy - 40, hx - 58, hy - 62, hx - 20, hy - 64);
-      ctx.quadraticCurveTo(hx, hy - 55, hx + 20, hy - 64);
-      ctx.bezierCurveTo(hx + 58, hy - 62, hx + 71, hy - 40, hx + 68, hy - 6);
-      ctx.ellipse(hx, hy - 6, 68, 15, 0, 0, Math.PI);
-      ctx.closePath();
-      ctx.fill();
-      ctx.save();
-      ctx.clip();
-      ctx.strokeStyle = 'rgba(0,0,0,0.07)';
-      ctx.lineWidth = 1;
-      for (let i = -12; i < 12; i++) { ctx.beginPath(); ctx.moveTo(hx + i * 12, hy - 70); ctx.lineTo(hx + i * 12 + 40, hy + 10); ctx.stroke(); }
-      ctx.strokeStyle = '#0c0c0c';
-      ctx.lineWidth = 12;
-      ctx.beginPath(); ctx.ellipse(hx, hy - 20, 70, 15, 0, 0, Math.PI); ctx.stroke();
-      ctx.restore();
-
-      // pandeiro deitado
-      const P = PANDEIRO;
-      shade(22, 10);
-      ellipse(P.x, P.y + 12, P.rx, P.ry, '#1c1c1c');
-      noShade();
-      const side = ctx.createLinearGradient(P.x - P.rx, 0, P.x + P.rx, 0);
-      side.addColorStop(0, '#161616');
-      side.addColorStop(0.45, '#4a4a4a');
-      side.addColorStop(1, '#161616');
-      ctx.fillStyle = side;
-      ctx.fillRect(P.x - P.rx, P.y, P.rx * 2, 12);
-      ctx.beginPath(); ctx.ellipse(P.x, P.y + 12, P.rx, P.ry, 0, 0, Math.PI); ctx.fill();
-      for (const j of this.jingles) {
-        ctx.fillStyle = '#060606';
-        ctx.fillRect(j.x - 8, j.y - 3, 16, 7);
-        ctx.fillStyle = '#9a9a9a';
-        ctx.beginPath(); ctx.ellipse(j.x - 3, j.y, 3.4, 2.4, 0, 0, TAU); ctx.ellipse(j.x + 3, j.y, 3.4, 2.4, 0, 0, TAU); ctx.fill();
-      }
-      ellipse(P.x, P.y, P.rx, P.ry, '#3c3c3c');
-      const skin = ctx.createRadialGradient(P.x - 26, P.y - 10, 4, P.x, P.y, P.rx);
-      skin.addColorStop(0, '#f4f4f4');
-      skin.addColorStop(1, '#a6a6a6');
-      ellipse(P.x, P.y, P.rx - 10, P.ry - 4, skin);
-
-      // cavaquinho deitado na diagonal (o lado da caixa aparece embaixo)
-      const body = (c) => {
-        c.beginPath();
-        c.arc(32, 0, 60, 0, TAU);
-        c.moveTo(-1, 0);
-        c.arc(-46, 0, 47, 0, TAU);
-        c.fill();
-        c.fillRect(-46, -36, 80, 72);
-      };
-      ctx.save();
-      ctx.translate(1052, 420);
-      ctx.rotate(-0.36);
-      ctx.scale(1, 0.58);
-      shade(24, 16);
-      ctx.fillStyle = '#1e1e1e';
-      body(ctx);
-      ctx.restore();
-      noShade();
-      ctx.save();
-      ctx.translate(1052, 410);
-      ctx.rotate(-0.36);
-      ctx.scale(1, 0.58);
-      const top = ctx.createLinearGradient(-90, -60, 90, 60);
-      top.addColorStop(0, '#b4b4b4');
-      top.addColorStop(1, '#5e5e5e');
-      ctx.fillStyle = top;
-      body(ctx);
-      ctx.fillStyle = '#050505';
-      ctx.beginPath(); ctx.arc(-8, 0, 15, 0, TAU); ctx.fill();
-      ctx.strokeStyle = 'rgba(255,255,255,0.35)';
-      ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(-8, 0, 20, 0, TAU); ctx.stroke();
-      ctx.fillStyle = '#0a0a0a';
-      ctx.fillRect(56, -17, 9, 34);
-      ctx.fillStyle = '#1b1b1b';
-      ctx.fillRect(-262, -10, 220, 20);
-      ctx.fillStyle = '#151515';
-      ctx.fillRect(-316, -15, 56, 30);
-      ctx.strokeStyle = '#555';
-      ctx.lineWidth = 1.4;
-      for (let f = 0; f < 12; f++) { const x = -62 - f * 16.5; ctx.beginPath(); ctx.moveTo(x, -10); ctx.lineTo(x, 10); ctx.stroke(); }
-      ctx.fillStyle = '#8f8f8f';
-      for (const [x, y] of [[-302, -19], [-282, -19], [-302, 19], [-282, 19]]) { ctx.beginPath(); ctx.arc(x, y, 4, 0, TAU); ctx.fill(); }
-      ctx.strokeStyle = 'rgba(255,255,255,0.8)';
-      ctx.lineWidth = 0.9;
-      for (let s = -1.5; s <= 1.5; s += 1) { ctx.beginPath(); ctx.moveTo(-300, s * 5.5); ctx.lineTo(60, s * 5.5); ctx.stroke(); }
-      ctx.restore();
-
-      // copo de chopp
-      const G = GLASS;
-      ellipse(G.x + 8, G.bottom + 3, 34, 9, 'rgba(0,0,0,0.6)');
-      const beer = ctx.createLinearGradient(0, G.top, 0, G.bottom);
-      beer.addColorStop(0, '#d8d8d8');
-      beer.addColorStop(1, '#5c5c5c');
-      ctx.fillStyle = beer;
-      ctx.beginPath();
-      ctx.moveTo(G.x - G.w0 / 2, G.top + 16); ctx.lineTo(G.x + G.w0 / 2, G.top + 16);
-      ctx.lineTo(G.x + G.w1 / 2, G.bottom); ctx.lineTo(G.x - G.w1 / 2, G.bottom);
-      ctx.closePath(); ctx.fill();
-      ctx.fillStyle = '#f7f7f7';
-      ctx.fillRect(G.x - G.w0 / 2 - 1, G.top + 2, G.w0 + 2, 16);
-      for (let i = 0; i < 6; i++) { ctx.beginPath(); ctx.arc(G.x - G.w0 / 2 + 5 + i * 8, G.top + 3, 5, 0, TAU); ctx.fill(); }
-      ctx.fillStyle = 'rgba(255,255,255,0.32)';
-      ctx.fillRect(G.x - G.w0 / 2 + 6, G.top + 22, 4, G.bottom - G.top - 30);
-      ellipse(G.x, G.bottom - 3, G.w1 / 2, 4, 'rgba(255,255,255,0.22)');
-
-      // garrafa
-      ellipse(1352, 468, 30, 8, 'rgba(0,0,0,0.6)');
-      ctx.fillStyle = '#0b0b0b';
-      ctx.beginPath();
-      ctx.moveTo(1326, 466); ctx.lineTo(1326, 354);
-      ctx.quadraticCurveTo(1328, 330, 1339, 318); ctx.lineTo(1339, 292); ctx.lineTo(1353, 292); ctx.lineTo(1353, 318);
-      ctx.quadraticCurveTo(1364, 330, 1366, 354); ctx.lineTo(1366, 466);
-      ctx.closePath(); ctx.fill();
-      ctx.fillStyle = '#b0b0b0';
-      ctx.fillRect(1337, 284, 18, 9);
-      ctx.fillStyle = '#e6e6e6';
-      ctx.fillRect(1326, 392, 40, 38);
-      ctx.fillStyle = '#111';
-      ctx.fillRect(1332, 402, 28, 4);
-      ctx.fillRect(1336, 412, 20, 2.5);
-      ctx.fillRect(1336, 419, 20, 2.5);
-      ctx.fillStyle = 'rgba(255,255,255,0.28)';
-      ctx.fillRect(1331, 360, 3, 98);
-      ctx.fillRect(1342, 296, 2, 22);
+      this.paintHat(ctx, floorShadow, rand);
+      this.paintPandeiro(ctx, floorShadow, rand);
+      this.paintSheet(ctx, shade, noShade);
+      this.paintTamborim(ctx, floorShadow, ellipse);
+      this.paintViolao(ctx, floorShadow, rand);
 
       // fios do varal, com o bocal de cada lâmpada
       ctx.lineCap = 'round';
@@ -492,6 +320,403 @@
       }
       ctx.fillStyle = '#2a2a2a';
       for (const b of this.bulbs) ctx.fillRect(b.x - 2.5, b.y - 11, 5, 7);
+    }
+
+    // chapéu panamá de palha trançada, com a fita preta e o laço do lado
+    paintHat(ctx, floorShadow, rand) {
+      const hx = 300, hy = 392;
+      floorShadow(hx + 18, hy + 10, 126, 26, 16, 0.75);
+      // aba: palha clara, a borda um pouco virada pra cima, trama em raios e em voltas
+      const brim = new Path2D();
+      brim.ellipse(hx, hy, 128, 30, 0, 0, TAU);
+      const bg = ctx.createLinearGradient(0, hy - 30, 0, hy + 30);
+      bg.addColorStop(0, '#cfcfcf'); bg.addColorStop(0.55, '#b4b4b4'); bg.addColorStop(1, '#7c7c7c');
+      ctx.fillStyle = bg;
+      ctx.fill(brim);
+      ctx.save();
+      ctx.clip(brim);
+      ctx.lineWidth = 0.7;
+      for (let a = 0; a < TAU; a += TAU / 90) { // fibras saindo da copa
+        ctx.strokeStyle = `rgba(0,0,0,${0.06 + rand() * 0.06})`;
+        ctx.beginPath(); ctx.moveTo(hx + Math.cos(a) * 66, hy + Math.sin(a) * 15); ctx.lineTo(hx + Math.cos(a) * 130, hy + Math.sin(a) * 31); ctx.stroke();
+      }
+      for (let r = 0.56; r < 1; r += 0.055) { // voltas da trança
+        ctx.strokeStyle = 'rgba(255,255,255,0.09)';
+        ctx.beginPath(); ctx.ellipse(hx, hy, 128 * r, 30 * r, 0, 0, TAU); ctx.stroke();
+      }
+      ctx.restore();
+      ctx.strokeStyle = 'rgba(255,255,255,0.35)'; // a borda pega a luz
+      ctx.lineWidth = 1.6;
+      ctx.beginPath(); ctx.ellipse(hx, hy - 1, 127, 29, 0, Math.PI * 1.05, Math.PI * 1.95); ctx.stroke();
+      ctx.fillStyle = 'rgba(0,0,0,0.28)'; // sombra da copa na aba
+      ctx.beginPath(); ctx.ellipse(hx + 10, hy + 2, 78, 17, 0, 0, TAU); ctx.fill();
+      // copa com o vinco no meio
+      const crown = new Path2D();
+      crown.moveTo(hx - 68, hy - 6);
+      crown.bezierCurveTo(hx - 72, hy - 40, hx - 58, hy - 62, hx - 22, hy - 64);
+      crown.quadraticCurveTo(hx, hy - 54, hx + 22, hy - 64);
+      crown.bezierCurveTo(hx + 58, hy - 62, hx + 72, hy - 40, hx + 68, hy - 6);
+      crown.ellipse(hx, hy - 6, 68, 15, 0, 0, Math.PI);
+      crown.closePath();
+      const cg = ctx.createLinearGradient(hx - 70, 0, hx + 70, 0);
+      cg.addColorStop(0, '#8a8a8a'); cg.addColorStop(0.28, '#e2e2e2'); cg.addColorStop(0.55, '#c2c2c2'); cg.addColorStop(1, '#6e6e6e');
+      ctx.fillStyle = cg;
+      ctx.fill(crown);
+      ctx.save();
+      ctx.clip(crown);
+      ctx.lineWidth = 0.6; // trama cruzada da palha
+      for (let i = -16; i < 16; i++) {
+        ctx.strokeStyle = 'rgba(0,0,0,0.09)';
+        ctx.beginPath(); ctx.moveTo(hx + i * 9, hy - 70); ctx.lineTo(hx + i * 9 + 46, hy + 10); ctx.stroke();
+        ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+        ctx.beginPath(); ctx.moveTo(hx + i * 9, hy - 70); ctx.lineTo(hx + i * 9 - 46, hy + 10); ctx.stroke();
+      }
+      const crease = ctx.createLinearGradient(hx - 20, 0, hx + 20, 0); // vinco: sombra de um lado, luz do outro
+      crease.addColorStop(0, 'rgba(0,0,0,0)'); crease.addColorStop(0.45, 'rgba(0,0,0,0.3)'); crease.addColorStop(0.55, 'rgba(255,255,255,0.18)'); crease.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = crease;
+      ctx.beginPath(); ctx.moveTo(hx - 22, hy - 64); ctx.quadraticCurveTo(hx, hy - 40, hx - 4, hy - 26); ctx.lineTo(hx + 8, hy - 26); ctx.quadraticCurveTo(hx + 6, hy - 44, hx + 22, hy - 64); ctx.fill();
+      // fita preta de gorgorão, com um brilho fino
+      ctx.strokeStyle = '#0b0b0b';
+      ctx.lineWidth = 12;
+      ctx.beginPath(); ctx.ellipse(hx, hy - 20, 70, 15, 0, 0, Math.PI); ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,255,255,0.16)';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.ellipse(hx, hy - 25, 70, 15, 0, Math.PI * 0.15, Math.PI * 0.6); ctx.stroke();
+      ctx.restore();
+      ctx.fillStyle = '#0b0b0b'; // o laço, do lado esquerdo
+      ctx.beginPath(); ctx.moveTo(hx - 58, hy - 16); ctx.lineTo(hx - 76, hy - 24); ctx.lineTo(hx - 74, hy - 8); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(hx - 58, hy - 16); ctx.lineTo(hx - 72, hy - 2); ctx.lineTo(hx - 62, hy - 4); ctx.closePath(); ctx.fill();
+    }
+
+    // pandeiro deitado: aro de madeira com as platinelas nas janelas e os afinadores de metal; pele por cima
+    paintPandeiro(ctx, floorShadow, rand) {
+      const P = PANDEIRO, depth = 15;
+      floorShadow(P.x + 16, P.y + depth + 8, P.rx + 2, P.ry + 4, 14, 0.75);
+      // lateral do aro
+      const side = new Path2D();
+      side.moveTo(P.x + P.rx, P.y);
+      side.lineTo(P.x + P.rx, P.y + depth);
+      side.ellipse(P.x, P.y + depth, P.rx, P.ry, 0, 0, Math.PI);
+      side.lineTo(P.x - P.rx, P.y);
+      side.ellipse(P.x, P.y, P.rx, P.ry, 0, Math.PI, 0, true);
+      side.closePath();
+      const wood = ctx.createLinearGradient(P.x - P.rx, 0, P.x + P.rx, 0);
+      wood.addColorStop(0, '#0e0e0e'); wood.addColorStop(0.22, '#3a3a3a'); wood.addColorStop(0.38, '#5c5c5c');
+      wood.addColorStop(0.6, '#2f2f2f'); wood.addColorStop(1, '#0c0c0c');
+      ctx.fillStyle = wood;
+      ctx.fill(side);
+      ctx.save();
+      ctx.clip(side);
+      ctx.lineWidth = 0.7; // veios da madeira, acompanhando a curva
+      for (let d = 1.5; d < depth; d += 1.6) {
+        ctx.strokeStyle = `rgba(0,0,0,${0.18 + rand() * 0.2})`;
+        ctx.beginPath(); ctx.ellipse(P.x, P.y + d, P.rx, P.ry, 0, 0.05, Math.PI - 0.05); ctx.stroke();
+      }
+      ctx.restore();
+      // afinadores entre as janelas: hastes de metal com a porca embaixo
+      for (let i = 0; i < 8; i++) {
+        const a = Math.PI * (0.07 + (i * 0.86) / 7);
+        const x = P.x + Math.cos(a) * P.rx, y = P.y + Math.sin(a) * P.ry;
+        const m = ctx.createLinearGradient(x - 2, 0, x + 2, 0);
+        m.addColorStop(0, '#5a5a5a'); m.addColorStop(0.4, '#efefef'); m.addColorStop(1, '#4a4a4a');
+        ctx.fillStyle = m;
+        ctx.fillRect(x - 1.3, y + 1, 2.6, depth - 3);
+        ctx.fillRect(x - 2.6, y + depth - 5, 5.2, 4);
+      }
+      // janelas com as platinelas (pares de discos de metal, de lado)
+      for (const j of this.jingles) {
+        ctx.fillStyle = '#030303';
+        ctx.beginPath(); ctx.ellipse(j.x, j.y, 10, 4.2, 0, 0, TAU); ctx.fill();
+        for (const dx of [-3.4, 3.4]) {
+          const g = ctx.createRadialGradient(j.x + dx - 1.2, j.y - 0.8, 0.2, j.x + dx, j.y, 4.2);
+          g.addColorStop(0, '#ffffff'); g.addColorStop(0.35, '#c4c4c4'); g.addColorStop(1, '#4d4d4d');
+          ctx.fillStyle = g;
+          ctx.beginPath(); ctx.ellipse(j.x + dx, j.y, 4, 2.6, 0, 0, TAU); ctx.fill();
+        }
+      }
+      // aro de cima (madeira) e o aro de tensão de metal
+      ctx.fillStyle = '#2b2b2b';
+      ctx.beginPath(); ctx.ellipse(P.x, P.y, P.rx, P.ry, 0, 0, TAU); ctx.fill();
+      const ring = ctx.createLinearGradient(P.x - P.rx, 0, P.x + P.rx, 0);
+      ring.addColorStop(0, '#5a5a5a'); ring.addColorStop(0.3, '#f2f2f2'); ring.addColorStop(0.55, '#9a9a9a'); ring.addColorStop(1, '#3d3d3d');
+      ctx.strokeStyle = ring;
+      ctx.lineWidth = 3.4;
+      ctx.beginPath(); ctx.ellipse(P.x, P.y, P.rx - 4, P.ry - 1.6, 0, 0, TAU); ctx.stroke();
+      // pele: couro claro, com manchas e a marca de uso no meio
+      const skin = ctx.createRadialGradient(P.x - 30, P.y - 12, 4, P.x, P.y, P.rx);
+      skin.addColorStop(0, '#f1f1f1'); skin.addColorStop(0.6, '#d4d4d4'); skin.addColorStop(1, '#9c9c9c');
+      const skinPath = new Path2D();
+      skinPath.ellipse(P.x, P.y, P.rx - 8, P.ry - 3.6, 0, 0, TAU);
+      ctx.fillStyle = skin;
+      ctx.fill(skinPath);
+      ctx.save();
+      ctx.clip(skinPath);
+      for (let i = 0; i < 26; i++) {
+        const x = P.x + (rand() - 0.5) * P.rx * 1.7, y = P.y + (rand() - 0.5) * P.ry * 1.6;
+        ctx.fillStyle = `rgba(90,90,90,${0.03 + rand() * 0.05})`;
+        ctx.beginPath(); ctx.ellipse(x, y, 4 + rand() * 14, 2 + rand() * 4, rand() * 3, 0, TAU); ctx.fill();
+      }
+      ctx.fillStyle = 'rgba(70,70,70,0.08)';
+      ctx.beginPath(); ctx.ellipse(P.x + 6, P.y + 2, 30, 9, 0, 0, TAU); ctx.fill();
+      ctx.restore();
+    }
+
+    // partitura numa folha de verdade: título, claves, compasso, notas com colchete, marca de copo
+    paintSheet(ctx, shade, noShade) {
+      ctx.save();
+      ctx.translate(800, 454);
+      ctx.rotate(-0.06);
+      shade(22, 8);
+      const paper = ctx.createLinearGradient(-125, -46, 125, 46);
+      paper.addColorStop(0, '#f6f6f6'); paper.addColorStop(0.7, '#e2e2e2'); paper.addColorStop(1, '#c4c4c4');
+      ctx.fillStyle = paper;
+      ctx.beginPath(); // canto de baixo levemente levantado
+      ctx.moveTo(-125, -45); ctx.lineTo(125, -45); ctx.lineTo(125, 38); ctx.quadraticCurveTo(122, 45, 112, 46); ctx.lineTo(-125, 45); ctx.closePath();
+      ctx.fill();
+      noShade();
+      const curl = ctx.createLinearGradient(104, 30, 125, 46);
+      curl.addColorStop(0, 'rgba(0,0,0,0)'); curl.addColorStop(1, 'rgba(0,0,0,0.18)');
+      ctx.fillStyle = curl;
+      ctx.fillRect(100, 26, 26, 21);
+      ctx.fillStyle = 'rgba(0,0,0,0.55)'; // título e autor
+      ctx.fillRect(-34, -41, 68, 3.4);
+      ctx.fillStyle = 'rgba(0,0,0,0.3)';
+      ctx.fillRect(58, -36, 40, 1.8);
+      ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+      ctx.lineWidth = 0.8;
+      const staves = [-26, 10];
+      for (const y0 of staves) {
+        for (let l = 0; l < 5; l++) { ctx.beginPath(); ctx.moveTo(-110, y0 + l * 4.6); ctx.lineTo(110, y0 + l * 4.6); ctx.stroke(); }
+        for (const x of [-110, -48, 14, 76, 110]) { ctx.beginPath(); ctx.moveTo(x, y0); ctx.lineTo(x, y0 + 18.4); ctx.stroke(); }
+        // clave de sol
+        ctx.lineWidth = 1.1;
+        ctx.beginPath();
+        ctx.moveTo(-101, y0 + 24); ctx.bezierCurveTo(-96, y0 + 26, -95, y0 + 19, -99, y0 + 18);
+        ctx.bezierCurveTo(-105, y0 + 17, -106, y0 + 9, -100, y0 + 6); ctx.bezierCurveTo(-96, y0 + 3, -96, y0 - 4, -99, y0 - 5);
+        ctx.bezierCurveTo(-103, y0 - 3, -101, y0 + 8, -98, y0 + 22);
+        ctx.stroke();
+        ctx.lineWidth = 0.8;
+        ctx.fillStyle = 'rgba(0,0,0,0.75)'; // 4/4
+        ctx.font = 'bold 8px Georgia, serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('4', -88, y0 + 4.6);
+        ctx.fillText('4', -88, y0 + 13.8);
+      }
+      // notas: semínimas e pares de colcheias ligados pelo colchete
+      ctx.fillStyle = 'rgba(0,0,0,0.85)';
+      ctx.strokeStyle = 'rgba(0,0,0,0.85)';
+      const head = (x, y) => { ctx.beginPath(); ctx.ellipse(x, y, 2.9, 2.1, -0.4, 0, TAU); ctx.fill(); };
+      const stem = (x, y, h = 13) => { ctx.fillRect(x + 2.2, y - h, 0.9, h); };
+      const notes = [[-74, -17, 'q'], [-62, -21, 'q'], [-36, -14, 'b'], [-28, -19, 'b'], [-16, -12, 'q'], [-2, -21, 'q'],
+        [26, -16, 'b'], [34, -12, 'b'], [46, -19, 'q'], [60, -23, 'q'], [86, -14, 'q'], [98, -17, 'q'],
+        [-74, 21, 'b'], [-66, 17, 'b'], [-54, 14, 'q'], [-36, 19, 'q'], [-20, 12, 'b'], [-12, 16, 'b'],
+        [24, 21, 'q'], [40, 14, 'q'], [56, 18, 'b'], [64, 22, 'b'], [86, 16, 'q'], [100, 12, 'q']];
+      notes.forEach(([x, y, kind], i) => {
+        head(x, y);
+        stem(x, y);
+        if (kind === 'b' && notes[i + 1] && notes[i + 1][2] === 'b' && (i === 0 || notes[i - 1][2] !== 'b' || i % 2 === 0)) {
+          const [x2, y2] = notes[i + 1];
+          ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.moveTo(x + 2.6, y - 13); ctx.lineTo(x2 + 2.6, y2 - 13); ctx.stroke();
+        }
+      });
+      // marca redonda de um copo molhado, como em toda mesa de bar
+      ctx.strokeStyle = 'rgba(70,70,70,0.16)';
+      ctx.lineWidth = 2.2;
+      ctx.beginPath(); ctx.arc(70, 4, 19, 0.3, TAU - 0.5); ctx.stroke();
+      ctx.lineWidth = 0.8;
+      ctx.beginPath(); ctx.arc(71, 5, 16.5, 1.2, TAU - 0.2); ctx.stroke();
+      ctx.restore();
+    }
+
+    // Violão clássico em pé na ponta da mesa, de frente: tampo de pinho com sombreado na borda e veios,
+    // filete, boca com roseta, cavalete com rastilho e amarras, escala de ébano com trastes, mão com as
+    // janelas e seis tarraxas, três bordões revestidos e três cordas de nylon. Medidas de um violão de
+    // verdade (o braço encontra o corpo na casa 12).
+    paintViolao(ctx, floorShadow, rand) {
+      const gx = 1300, gy = 474; // pé do violão, em cima da mesa
+      floorShadow(gx + 22, gy + 2, 70, 11, 14, 0.8);
+      ctx.save();
+      ctx.translate(gx, gy);
+      ctx.rotate(0.09);
+      ctx.scale(1.12, 1.12);
+      const body = new Path2D();
+      body.moveTo(0, 0);
+      body.bezierCurveTo(34, 0, 58, -18, 58, -44);
+      body.bezierCurveTo(58, -68, 37, -77, 37, -92);
+      body.bezierCurveTo(37, -104, 47, -111, 47, -126);
+      body.bezierCurveTo(47, -142, 30, -151, 12, -151);
+      body.lineTo(-12, -151);
+      body.bezierCurveTo(-30, -151, -47, -142, -47, -126);
+      body.bezierCurveTo(-47, -111, -37, -104, -37, -92);
+      body.bezierCurveTo(-37, -77, -58, -68, -58, -44);
+      body.bezierCurveTo(-58, -18, -34, 0, 0, 0);
+      body.closePath();
+      // lateral aparecendo de leve do lado da sombra
+      ctx.save();
+      ctx.translate(4, 1);
+      ctx.fillStyle = '#0d0d0d';
+      ctx.fill(body);
+      ctx.restore();
+      // tampo: claro no meio e escurecendo na borda
+      const top = ctx.createRadialGradient(-8, -70, 10, 0, -70, 92);
+      top.addColorStop(0, '#d9d9d9'); top.addColorStop(0.55, '#b3b3b3'); top.addColorStop(0.85, '#7a7a7a'); top.addColorStop(1, '#3c3c3c');
+      ctx.fillStyle = top;
+      ctx.fill(body);
+      ctx.save();
+      ctx.clip(body);
+      ctx.lineWidth = 0.5; // veios do pinho, no comprimento do violão
+      for (let x = -60; x < 60; x += 1.6 + rand() * 1.4) {
+        ctx.strokeStyle = `rgba(0,0,0,${0.05 + rand() * 0.06})`;
+        ctx.beginPath(); ctx.moveTo(x, 2); ctx.bezierCurveTo(x + rand() - 0.5, -50, x + rand() - 0.5, -100, x, -155); ctx.stroke();
+      }
+      const sheen = ctx.createRadialGradient(-22, -52, 2, -22, -52, 42); // brilho do verniz
+      sheen.addColorStop(0, 'rgba(255,255,255,0.38)'); sheen.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = sheen;
+      ctx.fillRect(-70, -110, 100, 110);
+      ctx.restore();
+      ctx.lineWidth = 2.2; // filete claro na borda e o fio escuro de dentro
+      ctx.strokeStyle = 'rgba(240,240,240,0.85)';
+      ctx.stroke(body);
+      ctx.save();
+      ctx.clip(body);
+      ctx.lineWidth = 1.2;
+      ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+      ctx.translate(0, -75.5);
+      ctx.scale(0.955, 0.97);
+      ctx.translate(0, 75.5);
+      ctx.stroke(body);
+      ctx.restore();
+      // boca com a roseta de mosaico
+      const hy = -108;
+      for (const [r, c, w] of [[19.5, 'rgba(0,0,0,0.75)', 2.4], [17.3, 'rgba(255,255,255,0.8)', 1], [15.6, 'rgba(0,0,0,0.7)', 1.6]]) {
+        ctx.strokeStyle = c; ctx.lineWidth = w;
+        ctx.beginPath(); ctx.arc(0, hy, r, 0, TAU); ctx.stroke();
+      }
+      ctx.save();
+      ctx.setLineDash([1.4, 1.2]);
+      ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+      ctx.lineWidth = 1.6;
+      ctx.beginPath(); ctx.arc(0, hy, 19.5, 0, TAU); ctx.stroke();
+      ctx.restore();
+      const hole = ctx.createRadialGradient(-3, hy - 3, 2, 0, hy, 14);
+      hole.addColorStop(0, '#151515'); hole.addColorStop(1, '#020202');
+      ctx.fillStyle = hole;
+      ctx.beginPath(); ctx.arc(0, hy, 13.6, 0, TAU); ctx.fill();
+      // cavalete de jacarandá: rastilho de osso e as amarras das cordas
+      const br = ctx.createLinearGradient(0, -42, 0, -30);
+      br.addColorStop(0, '#3a3a3a'); br.addColorStop(1, '#0c0c0c');
+      ctx.fillStyle = br;
+      ctx.beginPath();
+      ctx.moveTo(-30, -33); ctx.quadraticCurveTo(-30, -41, -22, -41); ctx.lineTo(22, -41); ctx.quadraticCurveTo(30, -41, 30, -33);
+      ctx.lineTo(28, -30); ctx.lineTo(-28, -30); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#efefef';
+      ctx.fillRect(-13, -39.4, 26, 1.6);
+      ctx.fillStyle = 'rgba(255,255,255,0.55)';
+      for (let i = 0; i < 6; i++) ctx.fillRect(-10.5 + i * 4.2 - 0.8, -35, 1.6, 3);
+      // braço e escala de ébano (do corpo até a pestana), com os trastes pela regra das 12 casas
+      const saddle = -38.6, nut = saddle - 227;
+      const fretY = (n) => nut + 227 * (1 - Math.pow(2, -n / 12));
+      ctx.fillStyle = '#1a1a1a'; // braço por trás da escala
+      ctx.beginPath(); ctx.moveTo(-14.5, -151); ctx.lineTo(-12.6, nut); ctx.lineTo(12.6, nut); ctx.lineTo(14.5, -151); ctx.closePath(); ctx.fill();
+      const fb = ctx.createLinearGradient(-14, 0, 14, 0);
+      fb.addColorStop(0, '#080808'); fb.addColorStop(0.35, '#2e2e2e'); fb.addColorStop(0.65, '#1c1c1c'); fb.addColorStop(1, '#060606');
+      ctx.fillStyle = fb;
+      ctx.beginPath(); ctx.moveTo(-14, -126); ctx.lineTo(-11.8, nut); ctx.lineTo(11.8, nut); ctx.lineTo(14, -126); ctx.closePath(); ctx.fill();
+      for (let n = 1; n <= 19; n++) {
+        const y = fretY(n);
+        if (y > -127) break;
+        const half = 11.8 + (14 - 11.8) * ((y - nut) / (-126 - nut));
+        ctx.fillStyle = '#a6a6a6'; ctx.fillRect(-half, y - 0.7, half * 2, 1.4);
+        ctx.fillStyle = 'rgba(255,255,255,0.75)'; ctx.fillRect(-half, y - 0.7, half * 2, 0.5);
+      }
+      ctx.fillStyle = '#ececec'; // pestana de osso
+      ctx.fillRect(-12.2, nut - 2.4, 24.4, 2.6);
+      // mão: madeira escura com crista no topo, duas janelas e seis tarraxas
+      const head = new Path2D();
+      head.moveTo(-12.6, nut - 2);
+      head.lineTo(-16.5, nut - 50);
+      head.quadraticCurveTo(-9, nut - 56, 0, nut - 52);
+      head.quadraticCurveTo(9, nut - 56, 16.5, nut - 50);
+      head.lineTo(12.6, nut - 2);
+      head.closePath();
+      const hg = ctx.createLinearGradient(-17, 0, 17, 0);
+      hg.addColorStop(0, '#0a0a0a'); hg.addColorStop(0.4, '#353535'); hg.addColorStop(1, '#090909');
+      ctx.fillStyle = hg;
+      ctx.fill(head);
+      ctx.fillStyle = '#000';
+      ctx.fillRect(-9.5, nut - 44, 5.4, 36);
+      ctx.fillRect(4.1, nut - 44, 5.4, 36);
+      const rows = [nut - 14, nut - 25, nut - 36];
+      for (const y of rows) {
+        for (const s of [-1, 1]) {
+          ctx.fillStyle = '#efefef'; // rolete na janela
+          ctx.fillRect(s * 6.8 - 2.3, y - 1.4, 4.6, 2.8);
+          ctx.strokeStyle = '#8c8c8c'; ctx.lineWidth = 1.6; // eixo saindo pelo lado
+          ctx.beginPath(); ctx.moveTo(s * 15, y); ctx.lineTo(s * 22, y); ctx.stroke();
+          const btn = ctx.createRadialGradient(s * 25 - 1, y - 1, 0.4, s * 25, y, 4.4);
+          btn.addColorStop(0, '#ffffff'); btn.addColorStop(1, '#9a9a9a');
+          ctx.fillStyle = btn;
+          ctx.beginPath(); ctx.ellipse(s * 25, y, 3.8, 3, 0, 0, TAU); ctx.fill();
+        }
+      }
+      // cordas: bordões à esquerda (mais grossos e claros), nylon à direita; cada uma com a sua sombra
+      const atSaddle = [-10.5, -6.3, -2.1, 2.1, 6.3, 10.5];
+      const atNut = [-9.4, -5.6, -1.9, 1.9, 5.6, 9.4];
+      const toRoller = [[-6.8, rows[2]], [-6.8, rows[1]], [-6.8, rows[0]], [6.8, rows[0]], [6.8, rows[1]], [6.8, rows[2]]];
+      atSaddle.forEach((x, i) => {
+        const bass = i < 3, w = bass ? 1.2 - i * 0.14 : 0.72 - (i - 3) * 0.07;
+        ctx.strokeStyle = 'rgba(0,0,0,0.45)'; ctx.lineWidth = w;
+        ctx.beginPath(); ctx.moveTo(x + 1.3, saddle); ctx.lineTo(atNut[i] + 1.3, nut); ctx.stroke();
+        ctx.strokeStyle = bass ? 'rgba(248,248,248,0.95)' : 'rgba(225,225,225,0.8)';
+        ctx.beginPath(); ctx.moveTo(x, -33); ctx.lineTo(x, saddle); ctx.lineTo(atNut[i], nut); ctx.lineTo(toRoller[i][0], toRoller[i][1]); ctx.stroke();
+      });
+      ctx.restore();
+    }
+
+    // tamborim: aro de metal com os parafusos de afinar, pele branca, e a baqueta de varetas
+    paintTamborim(ctx, floorShadow, ellipse) {
+      const tx = 128, ty = 449, rx = 50, ry = 16, depth = 9;
+      floorShadow(tx + 10, ty + depth + 6, rx + 2, ry + 3, 10, 0.75);
+      const side = ctx.createLinearGradient(tx - rx, 0, tx + rx, 0);
+      side.addColorStop(0, '#0c0c0c'); side.addColorStop(0.3, '#5a5a5a'); side.addColorStop(0.45, '#2a2a2a'); side.addColorStop(1, '#080808');
+      ctx.fillStyle = side;
+      ctx.beginPath();
+      ctx.moveTo(tx + rx, ty); ctx.lineTo(tx + rx, ty + depth);
+      ctx.ellipse(tx, ty + depth, rx, ry, 0, 0, Math.PI);
+      ctx.lineTo(tx - rx, ty);
+      ctx.ellipse(tx, ty, rx, ry, 0, Math.PI, 0, true);
+      ctx.closePath();
+      ctx.fill();
+      for (let i = 0; i < 6; i++) { // parafusos de afinar
+        const a = Math.PI * (0.1 + (i * 0.8) / 5);
+        const x = tx + Math.cos(a) * rx, y = ty + Math.sin(a) * ry;
+        ctx.fillStyle = '#bdbdbd'; ctx.fillRect(x - 1.6, y + 1, 3.2, depth - 2);
+        ctx.fillStyle = 'rgba(255,255,255,0.8)'; ctx.fillRect(x - 1.6, y + 1, 1, depth - 2);
+      }
+      ellipse(tx, ty, rx, ry, '#151515');
+      ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.ellipse(tx, ty, rx - 1, ry - 0.5, 0, Math.PI * 1.08, Math.PI * 1.92); ctx.stroke();
+      const tskin = ctx.createRadialGradient(tx - 14, ty - 5, 2, tx, ty, rx);
+      tskin.addColorStop(0, '#f6f6f6'); tskin.addColorStop(1, '#a3a3a3');
+      ellipse(tx, ty, rx - 5, ry - 2.4, tskin);
+      // baqueta de tamborim: três varetas de plástico presas no cabo com fita
+      ctx.lineCap = 'round';
+      for (const off of [-2.6, 0, 2.6]) {
+        ctx.strokeStyle = '#0a0a0a'; ctx.lineWidth = 2.2;
+        ctx.beginPath(); ctx.moveTo(118, 461 + off * 0.4); ctx.lineTo(214, 430 + off); ctx.stroke();
+        ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 0.6;
+        ctx.beginPath(); ctx.moveTo(120, 460 + off * 0.4); ctx.lineTo(212, 429 + off); ctx.stroke();
+      }
+      ctx.strokeStyle = '#1b1b1b'; ctx.lineWidth = 7.5; // cabo com fita
+      ctx.beginPath(); ctx.moveTo(62, 486); ctx.lineTo(120, 462); ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,255,255,0.22)'; ctx.lineWidth = 1;
+      for (let i = 0; i < 9; i++) { // voltas da fita
+        const u = i / 9, x = 64 + u * 52, y = 485 - u * 22;
+        ctx.beginPath(); ctx.moveTo(x - 1.4, y - 3.4); ctx.lineTo(x + 1.6, y + 3.2); ctx.stroke();
+      }
     }
 
     burst(n = 120) {
@@ -620,17 +845,6 @@
         ctx.globalAlpha = 0.18 + 0.75 * hit * (0.5 + 0.5 * Math.sin(i * 2.1 + beatPos * 3));
         ctx.drawImage(this.glow, j.x - 13, j.y - 13, 26, 26);
       });
-      // bolhas subindo no chopp
-      const G = GLASS;
-      ctx.globalAlpha = 0.6;
-      ctx.fillStyle = '#fff';
-      for (const b of this.bubbles) {
-        b.y -= dt * b.sp * (0.4 + e) * motion;
-        if (b.y < 0) { b.y = 1; b.x = Math.random(); }
-        const y = G.top + 24 + b.y * (G.bottom - G.top - 30);
-        const half = (G.w1 + (G.w0 - G.w1) * (1 - b.y)) / 2 - 6;
-        ctx.beginPath(); ctx.arc(G.x - half + b.x * half * 2, y, b.r, 0, TAU); ctx.fill();
-      }
       // lâmpadas do varal: pulsam em grupos no tempo e acendem em onda quando o acorde muda
       const wave = (now - this.waveAt) / 1000;
       const span = (this.xR - this.xL) * 1.1;

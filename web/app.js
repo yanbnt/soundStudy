@@ -1804,6 +1804,15 @@
     ks.reduce((x, k) => x[k], o)[last] = v;
   }
   const target = (k) => (k === '_bus' ? S.bus : S.mix[k]);
+  // o desenho de cada parte (canal da mesa e lista do equalizador)
+  const STEM_ICON = { vocals: 'i-mic', guitar: 'i-guitar', piano: 'i-keys', other: 'i-cavaco', bass: 'i-bass', drums: 'i-pandeiro', _bus: 'i-sliders' };
+  const stemIcon = (k) => `<svg class="i" aria-hidden="true"><use href="#${STEM_ICON[k] || 'i-note'}"/></svg>`;
+  // equalizador mexido (alguma banda fora do zero ou algum corte ligado)?
+  const eqTouched = (k) => {
+    const e = target(k).eq;
+    if (!e.on) return false;
+    return k === '_bus' ? e.g.some((g) => g !== 0) : !!(e.low.g || e.mid.g || e.high.g || e.hp.on || e.lp.on);
+  };
   const chName = (k) => (k === '_bus' ? 'Master' : (STEMS.find((s) => s.key === k) || STEM_INFO[k] || { name: k }).name);
   const clampNum = (v, a, b, d) => (v !== null && v !== '' && Number.isFinite(+v) ? Math.min(b, Math.max(a, +v)) : d);
 
@@ -1954,10 +1963,12 @@
   function eqUiChanged(key) {
     const t = target(key);
     const d = eqMiniPath(key);
-    document.querySelectorAll(`.cx-ch[data-k="${key}"] .cx-eqmini, .cx-eq-side [data-sel="${key}"]`).forEach((el) => {
+    document.querySelectorAll(`.cx-ch[data-k="${key}"] .cx-eqmini`).forEach((el) => {
       el.querySelector('.c').setAttribute('d', d);
       el.classList.toggle('eq-off', !t.eq.on);
     });
+    const side = document.querySelector(`.cx-eq-side [data-sel="${key}"]`);
+    if (side) side.classList.toggle('eq-set', eqTouched(key));
     document.querySelectorAll(`.cx-ch[data-k="${key}"] .knob`).forEach((k) => k._render && k._render());
     const eqv = $('#cxEq');
     if (S.eqSel === key && eqv && !eqv.hidden) {
@@ -2210,7 +2221,7 @@
     if (S.busPeak === undefined) S.busPeak = -Infinity;
     const strips = STEMS.map((s) => `
       <div class="cx-ch" data-k="${s.key}">
-        <div class="cx-name" title="${esc(s.desc)}">${esc(s.name)}</div>
+        <div class="cx-name" title="${esc(s.desc)}">${stemIcon(s.key)}<span>${esc(s.name)}</span></div>
         <button class="cx-eqmini" title="Equalizador: ${esc(s.name)}" aria-label="Abrir o equalizador: ${esc(s.name)}">${EQ_MINI}<span>EQ</span></button>
         <div class="cx-knobs"><div class="knob" data-k="${s.key}" data-p="eq.low.g"></div><div class="knob" data-k="${s.key}" data-p="eq.mid.g"></div><div class="knob" data-k="${s.key}" data-p="eq.high.g"></div></div>
         <div class="knob pan" data-k="${s.key}" data-p="pan"></div>
@@ -2220,7 +2231,7 @@
       </div>`).join('');
     const master = `
       <div class="cx-ch master" data-k="_bus">
-        <div class="cx-name">Master</div>
+        <div class="cx-name">${stemIcon('_bus')}<span>Master</span></div>
         <button class="cx-eqmini" title="Equalizador gráfico do master" aria-label="Abrir o equalizador do master">${EQ_MINI}<span>EQ</span></button>
         <div class="cx-limbox">
           <button class="cx-lim" title="Limitador: segura o pico abaixo de ${num(LIMIT_DB)} dB para o som não distorcer quando você sobe os faders e o equalizador">Limitador</button>
@@ -2245,7 +2256,7 @@
       <div class="cx-body">
         <div class="cx-strips" id="cxStrips">${strips}${master}</div>
         <div class="cx-eq" id="cxEq" hidden>
-          <div class="cx-eq-side">${['_bus', ...STEMS.map((s) => s.key)].map((k) => `<button data-sel="${k}">${EQ_MINI}<span>${esc(chName(k))}</span></button>`).join('')}</div>
+          <div class="cx-eq-side">${['_bus', ...STEMS.map((s) => s.key)].map((k) => `<button data-sel="${k}">${stemIcon(k)}<span>${esc(chName(k))}</span><i class="cx-eqdot" title="Equalizador mexido"></i></button>`).join('')}</div>
           <div class="cx-eq-main">
             <div class="cx-eq-top"><b id="cxEqTitle"></b><button class="cx-toggle" id="cxEqOn"></button><div class="cx-presets" id="cxEqPresets"></div><button class="link-btn" id="cxEqReset">Zerar EQ</button></div>
             <div class="cx-graph"><canvas id="cxCanvas"></canvas><div class="cx-tip" id="cxTip" hidden></div></div>
