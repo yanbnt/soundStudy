@@ -1,0 +1,152 @@
+# Pauta Viva
+
+App que transforma uma música (MP3, WAV, M4A…) em **partitura, cifras e letra sincronizadas com o áudio**, para quem está aprendendo a ler e tocar. Roda no computador do usuário (Windows), sem internet depois de instalado.
+
+Plano de negócio (Claude Docs): https://claude.ai/code/artifact/d81bf2c1-bd90-4429-a404-7c07d69bf033
+
+## Visão do produto
+
+- Hoje: ferramenta local de transcrição e estudo (partitura + cifras + letra + jogo).
+- Futuro: **rede social educativa de músicos**. Cada música tem a partitura automática e vídeos de músicos tocando; a comunidade vota e o mais votado vira o **vídeo padrão** daquela música (por instrumento e nível).
+- Público: louvor, pagode e sertanejo, do iniciante ao profissional. Lançamento com **louvor e pagode**.
+- Começo com cerca de **R$ 100**, app primeiro (o site da rede vem depois).
+- **Premium**: transcrições ilimitadas, nível detalhado, Modo Show valendo pontos (microfone), entre outros. Nesta versão de teste o Premium está liberado (`PREMIUM_LIBERADO` em `web/app.js`).
+
+## Como rodar
+
+- Pasta: `C:\Users\Make\Documents\Pauta Viva`
+- Usuário final: dois cliques em `iniciar.bat` (na primeira vez cria o `.venv` e instala o `requirements.txt`; abre `http://127.0.0.1:8765`). Se o servidor já estiver no ar, só abre o navegador.
+- Desenvolvimento:
+  - `.venv\Scripts\python.exe -m uvicorn app.server:app --host 127.0.0.1 --port 8765`
+  - **Reinicie o servidor depois de mudar qualquer arquivo Python** (o frontend é servido direto do disco: basta recarregar a página).
+- Python 3.12 (venv em `.venv`). Torch 2.5.1 CPU, Demucs, librosa 1.0, music21, FastAPI, faster-whisper.
+- Na primeira transcrição o app baixa modelos: Demucs htdemucs (~80 MB) e Whisper small (~480 MB).
+
+## Arquitetura
+
+### Backend (`app/`)
+
+| Arquivo | O que faz |
+| --- | --- |
+| `server.py` | FastAPI: `/api/songs` (listar, enviar, ver, renomear, excluir, reprocessar), `/api/songs/{id}/lyrics` (GET texto atual, PUT letra colada; vazio desfaz), `/lyrics/search` (versões na base de letras) e `/lyrics/use` (usa a versão escolhida), `/api/stages`, arquivos em `/files` e frontend em `/static` |
+| `pipeline.py` | Fila com um worker. Etapas: `convert` → `separate` (Demucs **htdemucs_6s**: voz, violão, teclado, outros, baixo, percussão) → `rhythm` → `harmony` → `melody` → `violao` → `lyrics` → `score`. Grava `meta.json` e `analysis.json`. Músicas antigas (4 partes) são separadas de novo ao reprocessar. `save_lyrics`, `use_api_lyrics` e `rebuild_scores` refazem as partituras em segundos |
+| `analysis.py` | Pulso (librosa + correção de contratempo pelo bumbo/baixo), levada binária ou ternária (4/4 ou 12/8), tom (perfil de Krumhansl e depois **confirmado pelos acordes**: `key_from_chords`), acordes (modelo BTC; reserva por croma), melodia (pYIN → eventos de nota → grade). `spell_with_bass` (baixo nota a nota) existe mas **não está ligado**: piorou a prova |
+| `lvcr/` | **Modelo de acordes em uso**: Jiang et al., "Large-Vocabulary Chord Transcription via Chord Structure Decomposition" (ISMIR 2019, MIT). Decompõe o acorde em tríade + baixo + 7ª + 9ª + 11ª + 13ª; vocabulário com inversões e baixo pedal (m/b7, maj/2, maj/3, maj/5…), 7M(9), m7(9), 7(9), 7(11), 7(13), 7(4). 5 redes (5,5 MB cada) votam; ~35 s por música no PC do usuário. Pesos carregados com `weights_only=True` |
+| `chord_model.py` + `app/btc/` | BTC (Park et al., ISMIR 2019, licença MIT): 170 acordes. Reserva se `lvcr/` faltar. Ajustes locais: `yaml.safe_load` e `np.float` → `float` |
+| `hardware.py` | **Modo de qualidade** (`data/config.json`: auto, rápida, máxima). Detecta placa NVIDIA (CUDA) e decide: separação máxima, Whisper `large-v3` na placa e animações em resolução cheia a 60 quadros; sem placa: rápida, `small`, animações leves. `/api/config` (GET/PUT) e engrenagem no topo da tela |
+| `separation.py` | Dois motores, mesmas 6 partes. **Rápida**: Demucs htdemucs_6s (MIT); confunde violão de nylon com piano às vezes (intro, finais). **Máxima**: BS-RoFormer SW (pacote `bs-roformer-infer`, código MIT, pesos de 667 MB em `data/models/`, **licença dos pesos desconhecida**: só teste/uso pessoal até resolver). Na placa de vídeo leva minutos; no PC sem placa, horas. "Refazer com separação máxima" no menu da música |
+| `basicpitch/` | Basic Pitch (Spotify, Apache 2.0), só o modelo ONNX de 230 KB e a decodificação de notas adaptada (sem TensorFlow). ~5 s por parte da música no PC do usuário |
+| `violao.py` | Violão nota por nota: Basic Pitch na parte "guitar" → ataques (notas juntas até 45 ms viram acorde) → corda e casa por Viterbi (forma confortável, mão andando pouco) → MusicXML com pauta (clave de sol com 8) + **tablatura** de 6 cordas e cifras em cima (`score_violao.musicxml`) |
+| `lyrics.py` | Letra: faster-whisper (`PAUTA_WHISPER_MODEL`, padrão `small`) na voz separada; `align_text` encaixa letra colada; `align_synced` encaixa letra com tempo por linha (LRC) achando o atraso e espalhando as sílabas pelas notas cantadas; `words_on_notes` põe as palavras embaixo das notas |
+| `lyrics_api.py` | Letra pela base aberta **LRCLIB** (sem chave; muitas com tempo por linha). Adivinha artista e música pelo nome do arquivo e escolhe a versão de duração mais parecida |
+| `notation.py` | MusicXML compasso a compasso, voz única: barras de ritmo nos compassos sem melodia, notas e pausas cortadas nas trocas de acorde, pausas agrupadas, ligaduras; MIDI com melodia e acordes |
+
+Ferramenta de desenvolvimento: `tools/avaliar_cifras.py` (a "prova das cifras"). Compara os acordes de cada música com o gabarito em `data/gabarito/<id>.json` (só nomes de acordes, sem letra) e dá a nota em 4 níveis: raiz, maior/menor, com baixo e sétimas. **Toda mudança nos acordes precisa subir a média sem derrubar nenhuma música.**
+
+Acordes por tempo usam Viterbi com custo de troca por posição no compasso (barato no 1 e no 3). Dois níveis: **simples** (junta trocas rápidas) e **detalhado** (mostra todas).
+
+### Dados de cada música (`data/songs/<id>/`)
+
+- `meta.json` (título, status, progresso, tom, BPM), `source.*` (original)
+- `stems/*.m4a` (voz, harmonia, baixo, percussão para o player); `work/*.wav` (mono 22 kHz para análise)
+- `work/lyrics.json` (letra automática, cache), `work/lyrics_user.json` (letra corrigida; tem prioridade)
+- `analysis.json`: `grid` (tempos), `bpm`, `key`, `time_signature`, `beat_ql` (1 em 4/4, 1,5 em 12/8), `subdivision`, `chords` (simples), `chords_detalhado`, `melody` (notas por nível), `lyrics`, `lyrics_source`, `octave_shift`, `has_vocals`
+- `score_simples.musicxml`, `score_detalhado.musicxml`, `transcricao.mid`
+
+### Frontend (`web/`)
+
+| Arquivo | O que faz |
+| --- | --- |
+| `index.html` | Telas: início, processando, erro, leitor, Modo palco, Modo Show, janela de corrigir letra |
+| `style.css` | Identidade **preto e branco**: preto puro, painéis `#0a0a0a` sem borda, branco para ação e destaque, cinzas no resto; títulos em Fraunces (com itálico) e texto em Figtree. Capas em P&B com 4 desenhos (vinil, pauta, retícula, listras) |
+| `app.js` | Estado `S`, biblioteca, player com as partes sincronizadas (ver "Motor de áudio"), partitura (OSMD) com cursor, acordes por nível, karaokê, repetir trecho, metrônomo, mixer, Modo palco, Modo Show (esteira + jogo + escolha do fundo), corrigir letra, mão do acorde, logo que ondula tocando. Com `?debug` na URL, expõe `window.pv` para medir a sincronia no console |
+| `chords.js` | Diagramas de acorde no violão (formas de E e de A e abertos), `fingering()` (qual dedo em cada nota) e `neck()`: o braço do violão deitado com a bolinha numerada de cada dedo e a pestana |
+| `viz.js` | Animação do topo da música, em P&B (névoas de luz e barras do som) |
+| `stage.js` | Cena da roda de samba com músicos em silhuetas; `mono` tira a cor no fim do quadro (uma passada `saturation`) |
+| `mesa.js` | Cena **"mesa de samba"** sem pessoas, em P&B: lua sobre a baía, morros, bondinho, varal de lâmpadas, chapéu, tamborim, pandeiro, cavaquinho, chopp e partitura na mesa. Fundo padrão do Modo Show e da tela inicial |
+| `game.js` | Microfone: modo **acordes** (croma por tempo) e modo **melodia** (YIN, nota por nota) |
+| `vendor/` | OpenSheetMusicDisplay 1.9.0 e fontes (Figtree, Fraunces) |
+
+**Modo Show:** a partitura numa linha só (`renderSingleHorizontalStaffline`) desliza por baixo de uma linha fixa (tempo → posição x pelas posições do cursor). A cena do palco é desenhada acima da esteira. Há fundo opcional com vídeo ou foto da própria pessoa (dura até fechar o app).
+
+**Mesa de som** (botão de faders na barra de baixo; painel que sobe e cobre a parte de baixo da tela, fecha no × ou Esc):
+- Canais: equalizador (corte de grave, grave, médio com largura, agudo, corte de agudo), pan, mudo/solo (Alt + clique = solo só deste), fader de −∞ a +6 dB com escala fina perto do 0 dB, medidor estéreo de pico com marca do maior pico recente e luz de "passou de 0 dB".
+- Master: equalizador gráfico de 10 bandas, fader, limitador (teto −0,5 dB, mostra quanto está segurando; com o desconto do ganho automático do compressor do WebAudio, abaixo do teto o volume é o original) e pico desde o último clique.
+- Aba Equalizador: gráfico de 20 Hz a 20 kHz com a curva, pontos arrastáveis (rodinha = largura do médio) e analisador de espectro ao vivo (FFT 8192, inclinação de 4,5 dB por oitava). Presets por canal e do master. A curva é desenhada com as mesmas fórmulas do WebAudio (`biquadDb`).
+- Atalhos (só volume/mudo/solo), "Minhas mixagens" (`localStorage` `pv.mixPresets`, valem para qualquer música) e ajuste por música (`pv.mix.<id>`, com `_bus` para o master). Valores guardados são conferidos e limitados ao carregar (`cleanStrip`, `cleanBus`).
+- Grafo: `entrada → corte de grave → grave → médio → agudo → corte de agudo → pan → fader → mudo → master`; master `EQ → fader → limitador → desconto → volume do fone → saída` (o limitador atrasa 6 ms: o tempo da tela e o metrônomo descontam).
+
+**Motor de áudio (sincronia do cursor):**
+- Velocidade normal: as 6 partes são decodificadas (`decodeAudioData`) e tocam como `AudioBufferSourceNode` começando na **mesma amostra** do relógio do WebAudio. Pulo e troca de trecho param as antigas e começam as novas no mesmo instante agendado (sem buraco); "repetir trecho" usa o `loop` da própria fonte. Memória: cerca de 2,1 MB por segundo de música (6 partes estéreo); acima de 1,1 GB fica no modo `<audio>`.
+- Velocidade reduzida: um `<audio>` por parte (tom preservado), realinhados a cada 700 ms se escaparem mais de 30 ms.
+- Todas passam por um ganho (mesa de som) e um medidor por parte, e somam no analisador das animações.
+- Tempo da tela = o que **sai no fone** (`getOutputTimestamp`; no modo `<audio>`, `currentTime` menos `outputLatency + baseLatency`, porque o `currentTime` do `<audio>` ligado ao WebAudio é o que entra no WebAudio, medido: ~50 ms à frente do fone) **mais 50 ms** (`VISUAL_LEAD`: a imagem leva 2 a 3 quadros para aparecer). Ajuste fino por pessoa no menu de velocidade ("Cursor × som", `localStorage` `pv.syncMs`).
+- O cursor pula para cada nota no **instante real** em que ela é cantada (`melody_times`) ou tocada no violão (4º campo de `violao`), não no tempo arredondado da partitura: na partitura simples desta música o arredondamento chegava a 104 ms (metade das notas acima de 50 ms). Pausas, ligaduras e compassos sem melodia seguem a grade.
+- Metrônomo agendado no relógio de áudio (120 ms à frente), não na tela.
+- Servidor manda `Cache-Control: no-cache` em tudo (o navegador confere pelo ETag): sem isso, o navegador usava `app.js`, partitura e partes de áudio antigas depois de atualizar ou refazer a música.
+
+## Decisões e aprendizados
+
+- **Computador do usuário é fraco** (i5-3470, Intel HD, 8 GB): nada de `backdrop-filter`/blur ou filtros CSS em áreas grandes; cenas em canvas a 30 fps com camadas fixas pré-desenhadas (a roda gasta cerca de 5 ms por quadro). Separação leva cerca de 3 a 4 vezes a duração da música.
+- **Identidade própria**: não copiar o Spotify nem outro produto (risco jurídico). Sem o verde `#1ed760`. O usuário escolheu **preto e branco, bem estilizado, sem bordas**, mantendo as posições dos controles (barra lateral, painel principal, barra de tocar embaixo).
+- **Marca**: a pauta que vira onda de som (5 linhas retas com uma nota que ondulam à direita), num quadrado branco, e o nome "Pauta *Viva*" com "leia tocando" embaixo. Enquanto a música toca, a onda da marca anda (`waveLogo` no `app.js`).
+- **Letra**: o reconhecimento acerta o tempo, mas erra palavras em voz cantada ("pra te ter" vira "prateleira"). Ordem: letra colada pela pessoa > base LRCLIB > reconhecimento. Pesquisado em 14/10/2026: Vagalume (API fora do ar e exigia chave), Letras.mus.br e Cifra Club (sem API; o "cifraclub-api" do GitHub é robô não oficial, viola os termos: **não usar**), lyrics.ovh (sem a música). Para vender: licença Musixmatch/LyricFind (ou parceria com a Studio Sol, dona do Letras e do Cifra Club). Letras de músicas são protegidas por direito autoral: não escrevê-las em respostas, código ou documentos; testar só com números ou frases inventadas.
+- **Acordes**: a referência humana é o Cifra Club. Ajuste só entra se melhorar a prova (`tools/avaliar_cifras.py`) em **várias** músicas; ajustar olhando uma música só é remendo. Gabarito guarda só os acordes (sem letra), copiados por nós uma vez; o usuário final não copia nada.
+- **Violão**: a separação em 6 partes isola o violão (casa média 3-4, região normal do pagode); na de 4 partes o violão vinha misturado com cavaco e teclado (casa média 7).
+- **Cifra Club não é a gravação**: é uma versão para tocar, feita por uma pessoa. Em "Frases de Amor" o baixo gravado toca Fá onde o Cifra escreve Fm/E♭. O gabarito vale para raiz e maior/menor; o baixo tem que seguir o que está gravado (conferir com as notas do baixo separado).
+- **Compasso**: `estimate_meter` decide pela pulsação, onde os acordes trocam e andamento confortável. Ainda instável em música ambígua (Frases de Amor oscilou entre 12/8 a 96 e 4/4 a 144; os números indicam 4/4, talvez a 72). Precisa de gabarito de compasso e BPM (perguntar ao usuário como ele conta).
+- **Testado e descartado**: regra do baixo por nota (`spell_with_bass`) piorou a prova contra o Cifra (mas o Cifra não é a gravação: reavaliar com gabarito melhor).
+- **Partitura**: cores claras pelas regras do OSMD (`DefaultColor*`), não por filtro CSS. A classe CSS `show` é do Modo Show: não usar esse nome para estados de outros elementos (já causou bug).
+- **Mão desenhada no braço**: testada e reprovada pelo usuário ("dedo de alienígena"). Mostrar só a posição dos dedos (bolinhas numeradas).
+- **12/8**: um tempo da análise = semínima pontuada (`beat_ql = 1,5`).
+- **Windows**: caminhos com mais de 260 caracteres quebram o Python; scripts de teste vão em `%TEMP%`. No PowerShell não existe `&&`.
+
+## Rodar no notebook com placa de vídeo
+
+1. Instalar o Python 3.12 (python.org, marcar "Add to PATH").
+2. Copiar a pasta do projeto **sem** a pasta `.venv` (ela não funciona em outro computador). Levar `data/models/` economiza o download de 667 MB.
+3. Dois cliques no `iniciar.bat`: ele cria o ambiente, vê a placa NVIDIA (`nvidia-smi`), instala o PyTorch com CUDA (cu124) e as bibliotecas cuBLAS/cuDNN para a letra na placa, e abre o app. Na primeira vez baixa os modelos (separação, Whisper `large-v3` ~3 GB).
+4. A engrenagem no topo mostra a placa encontrada; no modo Automática a separação já vai na máxima.
+
+## Preferências do usuário
+
+- Português, respostas curtas, diretas e visuais (prints e telas valem mais que texto longo).
+- Iniciante em leitura de partitura; toca violão.
+- Quer algo profissional, elegante e próprio.
+
+## Estado atual (14/10/2026)
+
+Pronto e testado:
+- Transcrição completa: separação, pulso, 4/4 ou 12/8, tom, acordes (BTC, dois níveis), melodia, letra automática, partitura e MIDI.
+- Leitor: partitura com cursor, cifras, diagramas, karaokê, loop, metrônomo, velocidade, mixer e Modo palco.
+- Modo Show: esteira fluida, roda de samba animada, jogo com microfone (acordes e melodia; testado com tons gerados, ainda não com instrumento real).
+- Bugs corrigidos: cifras sobrepostas, voz escondida na partitura, barra do topo invadindo a tela, faixa de cifras cobrindo a partitura.
+- Corrigir letra: encaixe da letra colada testado no servidor.
+- Identidade preto e branco aplicada em todas as telas (início, leitor, Modo palco, Modo Show, janelas), logo nova, favicon, capas P&B.
+- Tela inicial com a mesa de samba animada no topo; Modo Show com fundo "Mesa de samba à noite" (padrão), "Roda de samba com músicos" (em P&B) ou vídeo/foto próprio; a escolha da cena fica guardada (`localStorage` `pv.scene`).
+- Card "Como tocar" na barra lateral: o braço do violão mostra onde vai cada dedo no acorde atual (antes do primeiro acorde mostra "Prepare").
+
+- Separação em 6 partes, nível "Violão" (tablatura + braço com as notas ao vivo), mixer com 6 canais e "Sem o violão (toque você)".
+- Letra pela base aberta (LRCLIB) com busca na tela e atalho para o Letras; reconhecimento só como reserva.
+- Tom confirmado pelos acordes (Frases de Amor: Mi♭ maior, igual ao Cifra Club). Modelo de acordes de vocabulário grande ligado.
+- Prova das cifras (Frases de Amor, trecho de 23 acordes): raiz 78%, maior/menor 78%, com baixo 65%, sétimas 70%.
+
+- Mesa de som virtual (botão de faders na barra de baixo): fader vertical em dB por parte, medidor ao vivo, mudo/solo, presets ("Sem o violão (toque você)") e ajuste salvo por música (`localStorage` `pv.mix.<id>`).
+- Modo de qualidade com detecção da máquina e separação máxima (BS-RoFormer SW) prontos; o usuário vai testar no notebook com placa de vídeo.
+- Letra na partitura por **sílaba** (separação silábica do português, hífen entre sílabas, melisma quando a nota sobra) e encaixada no instante real das notas.
+- Cursor preciso (motor de áudio sincronizado por amostra + instante real das notas), testado no navegador: posição certa em 229 de 230 quadros, velocidade reduzida, repetição sem buraco e metrônomo.
+- Mesa de som profissional (ver Frontend), testada no navegador: arrastar pontos do gráfico, rodinha, cortes, mixagens salvas, "Zerar tudo".
+- Corrigido: ao abrir outra música, a frase da letra da música anterior ficava na tela até a nova começar (`resetLyrics`).
+- Separação: o analisador da mesa mostra que o baixo do modo rápido (Demucs) quase não tem som acima de ~300 Hz (fica "abafado"); o modo Máxima (BS-RoFormer) é a solução, no notebook com placa NVIDIA.
+
+Próximos passos (nesta ordem):
+1. **Gabarito com 10 a 15 músicas** (o usuário manda MP3 + cifra do Cifra Club; guardar só os acordes, mais compasso e BPM). Só com isso dá para melhorar acordes e compasso sem remendo.
+2. Compasso: tornar `estimate_meter` estável e medir contra o gabarito; acordes que trocam no meio do tempo quando o tempo é lento.
+3. Baixo: usar o baixo transcrito para inversões que a gravação mostra (validar no gabarito).
+4. Testar no notebook com placa de vídeo (separação máxima, letra `large-v3`) e o instalador numa máquina limpa.
+5. Publicar no GitHub do usuário, em repositório **privado** (falta instalar o Git, com permissão do usuário).
+6. Testar "Corrigir letra" e o Modo Show valendo pontos com microfone real.
+7. **Segunda parte do sistema (separada deste app):** aplicação web de **teoria musical** completa e intuitiva, **mais gráfica do que escrita**, com **apresentações**, **provas** e **questões**. Pedido do usuário em 14/10/2026.
+8. **Login** (conta da pessoa), junto com a parte web.
+9. Por último: rede social (decisão do usuário).
+10. Nome: o usuário não gostou de "Pauta Viva" (14/10/2026); está escolhendo outro. O repositório pode ser renomeado no GitHub sem perder nada.

@@ -1,0 +1,524 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pauta Viva</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='10' fill='white'/%3E%3Cg fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round'%3E%3Cpath id='w' d='M5 0H14C16 0 17.2 1.1 18.7 1.1S22.6-2.6 25.4-2.6 29.6 3.5 32.5 3.5 35.2 1 36 0' transform='translate(0 11)'/%3E%3Cpath d='M5 0H14C16 0 17.2 1.1 18.7 1.1S22.6-2.6 25.4-2.6 29.6 3.5 32.5 3.5 35.2 1 36 0' transform='translate(0 15.5)'/%3E%3Cpath d='M5 0H14C16 0 17.2 1.1 18.7 1.1S22.6-2.6 25.4-2.6 29.6 3.5 32.5 3.5 35.2 1 36 0' transform='translate(0 20)'/%3E%3Cpath d='M5 0H14C16 0 17.2 1.1 18.7 1.1S22.6-2.6 25.4-2.6 29.6 3.5 32.5 3.5 35.2 1 36 0' transform='translate(0 24.5)'/%3E%3Cpath d='M5 0H14C16 0 17.2 1.1 18.7 1.1S22.6-2.6 25.4-2.6 29.6 3.5 32.5 3.5 35.2 1 36 0' transform='translate(0 29)'/%3E%3Cpath d='M13.15 21.3V6.5'/%3E%3C/g%3E%3Cellipse cx='9.6' cy='22.25' rx='3.8' ry='2.75' transform='rotate(-22 9.6 22.25)'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-library" viewBox="0 0 24 24"><path d="M4 4v16M9 4v16M14 5l5 15"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path class="fill" d="M7 4.5v15a.8.8 0 0 0 1.2.7l12.2-7.5a.8.8 0 0 0 0-1.4L8.2 3.8A.8.8 0 0 0 7 4.5z"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24"><rect class="fill" x="5.5" y="4" width="4.5" height="16" rx="1"/><rect class="fill" x="14" y="4" width="4.5" height="16" rx="1"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="M3.5 12a8.5 8.5 0 1 0 2.5-6M3.5 3.5V8H8"/></symbol>
+  <symbol id="i-fwd" viewBox="0 0 24 24"><path d="M20.5 12a8.5 8.5 0 1 1-2.5-6M20.5 3.5V8H16"/></symbol>
+  <symbol id="i-repeat" viewBox="0 0 24 24"><path d="m17 2 4 4-4 4M3 11V10a4 4 0 0 1 4-4h14M7 22l-4-4 4-4M21 13v1a4 4 0 0 1-4 4H3"/></symbol>
+  <symbol id="i-metro" viewBox="0 0 24 24"><path d="M9 3h6l4 18H5zM7 17h10M12 15l5-9"/></symbol>
+  <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></symbol>
+  <symbol id="i-vol" viewBox="0 0 24 24"><path d="M11 5 6 9H2v6h4l5 4zM15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/></symbol>
+  <symbol id="i-mute" viewBox="0 0 24 24"><path d="M11 5 6 9H2v6h4l5 4zM22 9l-6 6M16 9l6 6"/></symbol>
+  <symbol id="i-stage" viewBox="0 0 24 24"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></symbol>
+  <symbol id="i-full" viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+  <symbol id="i-dots" viewBox="0 0 24 24"><circle class="fill" cx="5" cy="12" r="1.8"/><circle class="fill" cx="12" cy="12" r="1.8"/><circle class="fill" cx="19" cy="12" r="1.8"/></symbol>
+  <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+  <symbol id="i-note" viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></symbol>
+  <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 15V3M7 8l5-5 5 5M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/></symbol>
+  <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M19 11a7 7 0 0 1-14 0M12 18v3M8 21h8"/></symbol>
+  <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m21 17-5-5-9 8"/></symbol>
+  <symbol id="i-spot" viewBox="0 0 24 24"><path d="M12 3v3M5.6 5.6l2.1 2.1M18.4 5.6l-2.1 2.1M4 21l5-9h6l5 9z"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></symbol>
+  <symbol id="i-stems" viewBox="0 0 24 24"><path d="M3 6h4l1.5-2.5 2 5 1.5-2.5H21M3 12h7l1.5-2.5 2 5 1.5-2.5H21M3 18h2l1.5-2.5 2 5 1.5-2.5H21"/></symbol>
+  <symbol id="i-guitar" viewBox="0 0 24 24"><path d="m13.5 10.5 7-7M19 2l3 3M12.6 9.6c-1.3-1.3-3.5-1.1-4.6.4-.5.7-.7 1.5-1.6 1.9-.9.4-2 .3-2.9 1.2-2 2-1.6 5.3.6 7.5s5.5 2.6 7.5.6c.9-.9.8-2 1.2-2.9.4-.9 1.2-1.1 1.9-1.6 1.5-1.1 1.7-3.3.4-4.6z"/><circle cx="10" cy="14.2" r="1.5"/></symbol>
+  <!-- marca do Pauta Viva: a pauta que vira onda de som -->
+  <symbol id="i-logo" viewBox="0 0 40 40">
+    <g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+      <path d="M5 0H14C16 0 17.2 1.1 18.7 1.1S22.6-2.6 25.4-2.6 29.6 3.5 32.5 3.5 35.2 1 36 0" transform="translate(0 11)"/>
+      <path d="M5 0H14C16 0 17.2 1.1 18.7 1.1S22.6-2.6 25.4-2.6 29.6 3.5 32.5 3.5 35.2 1 36 0" transform="translate(0 15.5)"/>
+      <path d="M5 0H14C16 0 17.2 1.1 18.7 1.1S22.6-2.6 25.4-2.6 29.6 3.5 32.5 3.5 35.2 1 36 0" transform="translate(0 20)"/>
+      <path d="M5 0H14C16 0 17.2 1.1 18.7 1.1S22.6-2.6 25.4-2.6 29.6 3.5 32.5 3.5 35.2 1 36 0" transform="translate(0 24.5)"/>
+      <path d="M5 0H14C16 0 17.2 1.1 18.7 1.1S22.6-2.6 25.4-2.6 29.6 3.5 32.5 3.5 35.2 1 36 0" transform="translate(0 29)"/>
+      <path d="M13.15 21.3V6.5"/>
+    </g>
+    <ellipse cx="9.6" cy="22.25" rx="3.8" ry="2.75" transform="rotate(-22 9.6 22.25)" fill="currentColor" stroke="#fff" stroke-width="1.1" paint-order="stroke"/><path d="M13.15 21.3V17" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+  </symbol>
+</svg>
+
+<div class="app no-song" id="app">
+  <header class="topbar">
+    <a class="logo" href="#" id="brandLink" aria-label="Pauta Viva, início">
+      <span class="logo-mark" aria-hidden="true">
+        <svg viewBox="0 0 40 40">
+          <g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <path id="logoWave" d="M5 0H14C16 0 17.2 1.1 18.7 1.1S22.6-2.6 25.4-2.6 29.6 3.5 32.5 3.5 35.2 1 36 0" transform="translate(0 11)"/>
+            <use href="#logoWave" y="4.5"/><use href="#logoWave" y="9"/><use href="#logoWave" y="13.5"/><use href="#logoWave" y="18"/>
+            <path d="M13.15 21.3V6.5"/>
+          </g>
+          <ellipse cx="9.6" cy="22.25" rx="3.8" ry="2.75" transform="rotate(-22 9.6 22.25)" fill="currentColor" stroke="#fff" stroke-width="1.1" paint-order="stroke"/><path d="M13.15 21.3V17" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+        </svg>
+      </span>
+      <span class="logo-word"><span class="logo-name">Pauta <i>Viva</i></span><span class="logo-tag">leia tocando</span></span>
+    </a>
+    <div class="tb-center">
+      <button class="home-btn" id="btnHome" aria-label="Início" title="Início"><svg class="i"><use href="#i-home"/></svg></button>
+      <label class="search">
+        <svg class="i"><use href="#i-search"/></svg>
+        <input id="search" type="search" placeholder="Buscar nas suas músicas" autocomplete="off" aria-label="Buscar nas suas músicas">
+      </label>
+    </div>
+    <div class="tb-right">
+      <div class="menu-wrap">
+        <button class="home-btn" id="btnQuality" title="Qualidade" aria-label="Qualidade"><svg class="i"><use href="#i-gear"/></svg></button>
+        <div class="menu quality-menu" id="qualityMenu" hidden>
+          <div class="menu-label">Qualidade</div>
+          <button data-q="auto"><b>Automática</b><span>Escolhe pela máquina: máxima se tiver placa de vídeo</span></button>
+          <button data-q="rapida"><b>Rápida</b><span>Separação mais leve; boa para computador simples</span></button>
+          <button data-q="maxima"><b>Máxima</b><span>Melhor separação de violão e teclado; pesada sem placa de vídeo</span></button>
+          <hr>
+          <p class="q-info" id="qualityInfo">Verificando a máquina…</p>
+        </div>
+      </div>
+      <button class="pill-white" id="btnUpload"><svg class="i"><use href="#i-plus"/></svg>Nova música</button>
+    </div>
+    <input type="file" id="fileInput" accept="audio/*,.mp3,.wav,.m4a,.aac,.flac,.ogg,.opus,.wma,.webm,.mp4" hidden>
+  </header>
+
+  <aside class="panel sidebar">
+    <div class="lib-head">
+      <div class="lib-title"><svg class="i"><use href="#i-note"/></svg><span>Minhas músicas</span></div>
+      <button class="icon-round" id="btnUpload2" aria-label="Nova música" title="Nova música"><svg class="i"><use href="#i-plus"/></svg></button>
+    </div>
+    <div class="chips lib-chips" id="libFilters">
+      <button class="chip on" data-f="all">Tudo</button>
+      <button class="chip" data-f="ready">Prontas</button>
+      <button class="chip" data-f="busy">Em andamento</button>
+    </div>
+    <ul class="lib-list" id="songList"></ul>
+    <div class="lib-empty" id="libEmpty">
+      <b>Transcreva sua primeira música</b>
+      <span>Solte um MP3 aqui e o Pauta Viva escreve a partitura e as cifras.</span>
+      <button class="pill-white sm" id="btnUpload3">Escolher arquivo</button>
+    </div>
+    <section class="hand-card" id="handCard" hidden aria-label="Como tocar o acorde de agora">
+      <div class="hand-head"><span id="handLabel">Como tocar</span><b id="handChord">—</b></div>
+      <div class="hand-svg" id="handSvg"></div>
+      <div class="hand-legend">
+        <span><i>1</i>indicador</span><span><i>2</i>médio</span><span><i>3</i>anelar</span><span><i>4</i>mínimo</span>
+        <span class="hl-sym">○ corda solta</span><span class="hl-sym">× não toca</span>
+      </div>
+    </section>
+  </aside>
+
+  <main class="panel main" id="main">
+    <div class="main-top" id="mainTop">
+      <button class="play-btn md" id="topPlay" aria-label="Tocar">
+        <svg class="i i-play"><use href="#i-play"/></svg><svg class="i i-pause"><use href="#i-pause"/></svg>
+      </button>
+      <span class="main-top-title" id="topTitle"></span>
+    </div>
+
+    <!-- Início -->
+    <section class="view view-home" id="viewHome">
+      <div class="home-hero">
+        <canvas class="home-canvas" id="homeCanvas" aria-hidden="true"></canvas>
+        <div class="home-copy">
+          <span class="hero-kicker">Pauta Viva · leia tocando</span>
+          <h1 id="greeting">Olá</h1>
+          <p>Solte uma música e veja a partitura, as cifras e a letra andando junto com o som.</p>
+        </div>
+      </div>
+      <div class="content">
+        <div class="drop-card" id="dropzone" tabindex="0" role="button" aria-label="Escolher arquivo de áudio">
+          <div class="drop-art"><svg class="i"><use href="#i-upload"/></svg></div>
+          <div class="drop-text">
+            <span class="kicker">Nova transcrição</span>
+            <h2>Solte uma música aqui</h2>
+            <p>MP3, WAV, M4A, FLAC ou OGG. O Pauta Viva separa a voz e os instrumentos, acha o tom e os acordes e escreve a melodia na pauta.</p>
+          </div>
+          <span class="pill-green">Escolher arquivo</span>
+        </div>
+
+        <div class="shelf" id="shelfRecent">
+          <h2 class="sec-title">Suas transcrições</h2>
+          <div class="grid" id="homeGrid"></div>
+        </div>
+
+        <div class="shelf">
+          <h2 class="sec-title">Como funciona</h2>
+          <div class="grid how">
+            <div class="how-card"><span class="how-n">1</span><svg class="i how-ic"><use href="#i-stems"/></svg><b>Separa</b><span>voz, harmonia, baixo e percussão</span></div>
+            <div class="how-card"><span class="how-n">2</span><svg class="i how-ic"><use href="#i-metro"/></svg><b>Analisa</b><span>pulso, compassos, tom e acordes</span></div>
+            <div class="how-card"><span class="how-n">3</span><svg class="i how-ic"><use href="#i-note"/></svg><b>Escreve</b><span>a melodia na pauta e as cifras</span></div>
+            <div class="how-card"><span class="how-n">4</span><svg class="i how-ic"><use href="#i-guitar"/></svg><b>Você lê tocando</b><span>a partitura anda junto com o som</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Processando -->
+    <section class="view" id="viewProcessing" hidden>
+      <div class="hero" id="procHero">
+        <div class="cover xl busy" id="procCover"><div class="eq big" aria-hidden="true"><i></i><i></i><i></i><i></i></div></div>
+        <div class="hero-info">
+          <span class="hero-kind" id="procEyebrow">Transcrevendo</span>
+          <h1 class="hero-title" id="procTitle"></h1>
+          <div class="hero-meta"><b id="procPct">0%</b><span class="dot">•</span><span id="procEta">calculando o tempo</span></div>
+          <div class="hero-progress"><div id="procBar"></div></div>
+        </div>
+      </div>
+      <div class="tinted">
+        <div class="content">
+          <div class="tracklist" id="procStages"></div>
+          <p class="note">Tudo roda no seu computador. Na primeira vez ele também baixa o modelo que separa os instrumentos (cerca de 80 MB).</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Erro -->
+    <section class="view" id="viewError" hidden>
+      <div class="hero" id="errHero">
+        <div class="cover xl" id="errCover"></div>
+        <div class="hero-info">
+          <span class="hero-kind danger">Não deu certo</span>
+          <h1 class="hero-title" id="errTitle"></h1>
+        </div>
+      </div>
+      <div class="tinted">
+        <div class="content">
+          <pre class="err-msg" id="errMsg"></pre>
+          <div class="row">
+            <button class="pill-green" id="btnRetry">Tentar de novo</button>
+            <button class="pill-outline" id="btnErrDelete">Excluir</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Leitor -->
+    <section class="view" id="viewPlayer" hidden>
+      <div class="hero live" id="playerHero">
+        <canvas class="hero-canvas" id="heroCanvas" aria-hidden="true"></canvas>
+        <div class="cover xl" id="playerCover"></div>
+        <div class="hero-info">
+          <span class="hero-kind">Transcrição</span>
+          <h1 class="hero-title" id="songTitle" title="Clique para renomear"></h1>
+          <div class="hero-meta">
+            <span class="logo-dot"><svg viewBox="0 0 40 40"><use href="#i-logo"/></svg></span><b>Pauta Viva</b>
+            <span class="dot">•</span><span id="factKey"></span>
+            <span class="dot">•</span><span id="factBpm"></span>
+            <span class="dot">•</span><span id="factMeter">4/4</span>
+            <span class="dot">•</span><span id="factDur"></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="tinted">
+        <div class="action-row">
+          <button class="play-btn xl" id="bigPlay" aria-label="Tocar">
+            <svg class="i i-play"><use href="#i-play"/></svg><svg class="i i-pause"><use href="#i-pause"/></svg>
+          </button>
+          <button class="pill-show" id="btnShow" title="Partitura gigante com um show ao vivo no fundo"><svg class="i"><use href="#i-spot"/></svg>Modo Show</button>
+          <button class="icon-btn lg" id="btnStage" title="Modo palco: acorde gigante para tocar junto" aria-label="Modo palco"><svg class="i"><use href="#i-stage"/></svg></button>
+          <div class="chips" id="levelSeg" role="group" aria-label="Nível da partitura">
+            <button class="chip on" data-level="simples" title="Menos trocas de acorde e ritmo mais fácil de ler">Simples</button>
+            <button class="chip" data-level="detalhado" title="Todas as trocas de acorde e o ritmo completo">Detalhada</button>
+            <button class="chip" data-level="violao" title="O que o violão toca, nota por nota, com tablatura">Violão</button>
+          </div>
+          <span class="spacer"></span>
+          <div class="zoom" role="group" aria-label="Zoom da partitura">
+            <button class="icon-btn" id="zoomOut" aria-label="Diminuir"><svg class="i"><use href="#i-minus"/></svg></button>
+            <span id="zoomVal">100%</span>
+            <button class="icon-btn" id="zoomIn" aria-label="Aumentar"><svg class="i"><use href="#i-plus"/></svg></button>
+          </div>
+          <div class="menu-wrap">
+            <button class="icon-btn lg" id="btnMore" aria-label="Mais opções"><svg class="i"><use href="#i-dots"/></svg></button>
+            <div class="menu" id="moreMenu" hidden>
+              <a id="dlXml" download>Baixar partitura (MusicXML)</a>
+              <a id="dlMid" download>Baixar MIDI</a>
+              <button id="btnRename">Renomear</button>
+              <button id="btnLyricsMenu">Corrigir a letra</button>
+              <button id="btnReanalyze">Refazer análise</button>
+              <button id="btnReMax">Refazer com separação máxima</button>
+              <hr>
+              <button id="btnDelete" class="danger">Excluir música</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="content">
+          <h2 class="sec-title">Tocando agora</h2>
+          <div class="now">
+            <div class="card now-current">
+              <div class="card-label">Acorde agora</div>
+              <div class="now-body">
+                <div class="now-text">
+                  <div class="now-chord" id="nowChord">—</div>
+                  <div class="now-sub" id="nowSub"></div>
+                </div>
+                <div class="diagram" id="nowDiagram"></div>
+              </div>
+            </div>
+            <div class="card now-next">
+              <div class="card-label">Próximo</div>
+              <div class="now-body">
+                <div class="next-chord" id="nextChord">—</div>
+                <div class="diagram small" id="nextDiagram"></div>
+              </div>
+            </div>
+            <div class="card now-pulse">
+              <div class="card-label">Compasso <b id="measureNum">1</b> de <span id="measureTotal">0</span></div>
+              <div class="beats" id="beats"><i>1</i><i>2</i><i>3</i><i>4</i></div>
+              <div class="now-sub">Conte junto com a bolinha acesa</div>
+            </div>
+          </div>
+          <div class="card lyric-card" id="lyricCard" hidden>
+            <div class="card-head">
+              <div class="card-label">Letra · <span id="lyricSource">cante junto e compare com as notas</span></div>
+              <button class="link-btn" id="btnLyricsEdit">Corrigir letra</button>
+            </div>
+            <div class="lyric-now" id="lyricNow"></div>
+            <div class="lyric-next" id="lyricNext"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="chordline-wrap"><div class="chordline" id="chordline"></div></div>
+
+      <div class="content">
+        <h2 class="sec-title">Partitura</h2>
+        <div class="paper">
+          <div id="osmd"></div>
+          <div class="paper-loading" id="paperLoading">Carregando partitura…</div>
+        </div>
+        <p class="note" id="paperNote"></p>
+      </div>
+    </section>
+  </main>
+
+  <!-- Modo palco -->
+  <section class="panel stage" id="stage" hidden aria-label="Modo palco">
+    <canvas class="stage-canvas" id="stageCanvas" aria-hidden="true"></canvas>
+    <div class="stage-top">
+      <div class="stage-song">
+        <div class="cover sm" id="stageCover"></div>
+        <div class="stage-song-text"><b id="stageTitle"></b><span id="stageMeta"></span></div>
+      </div>
+      <div class="stage-actions">
+        <button class="icon-btn lg" id="btnFull" title="Tela cheia" aria-label="Tela cheia"><svg class="i"><use href="#i-full"/></svg></button>
+        <button class="icon-btn lg" id="btnStageClose" title="Sair do modo palco (Esc)" aria-label="Sair do modo palco"><svg class="i"><use href="#i-x"/></svg></button>
+      </div>
+    </div>
+    <div class="stage-center">
+      <div class="stage-now">
+        <span class="stage-label">Agora</span>
+        <div class="stage-chord" id="stageChord">—</div>
+        <div class="stage-sub" id="stageSub"></div>
+        <div class="stage-lyric" id="stageLyric"></div>
+      </div>
+      <div class="stage-diagram" id="stageDiagram"></div>
+    </div>
+    <div class="stage-bottom">
+      <button class="play-btn xl" id="stagePlay" aria-label="Tocar">
+        <svg class="i i-play"><use href="#i-play"/></svg><svg class="i i-pause"><use href="#i-pause"/></svg>
+      </button>
+      <div class="stage-beats" id="stageBeats"><i>1</i><i>2</i><i>3</i><i>4</i></div>
+      <div class="stage-next"><span class="stage-label">Depois</span><b id="stageNext">—</b></div>
+    </div>
+  </section>
+
+  <!-- Mesa de som: painel que sobe da barra de baixo (canais, master e equalizador) -->
+  <section class="panel console" id="mixer" hidden aria-label="Mesa de som"></section>
+
+  <footer class="nowbar" id="nowbar">
+    <div class="nb-left">
+      <div class="cover nb-cover empty" id="nbCover"></div>
+      <div class="nb-text">
+        <div class="nb-title" id="nbTitle">Nada tocando</div>
+        <div class="nb-sub" id="nbSub">Escolha uma música da biblioteca</div>
+      </div>
+    </div>
+    <div class="nb-center">
+      <div class="nb-controls">
+        <button class="ctl-btn" id="btnClick" title="Metrônomo" aria-label="Metrônomo"><svg class="i"><use href="#i-metro"/></svg></button>
+        <button class="ctl-btn" id="btnBack" title="Voltar 5 segundos (←)" aria-label="Voltar 5 segundos"><svg class="i"><use href="#i-back"/></svg></button>
+        <button class="nb-play" id="btnPlay" aria-label="Tocar" title="Tocar / pausar (espaço)">
+          <svg class="i i-play"><use href="#i-play"/></svg><svg class="i i-pause"><use href="#i-pause"/></svg>
+        </button>
+        <button class="ctl-btn" id="btnFwd" title="Avançar 5 segundos (→)" aria-label="Avançar 5 segundos"><svg class="i"><use href="#i-fwd"/></svg></button>
+        <button class="ctl-btn" id="btnLoop" title="Repetir trecho" aria-label="Repetir trecho"><svg class="i"><use href="#i-repeat"/></svg><span class="loop-badge" id="loopBadge" hidden></span></button>
+      </div>
+      <div class="nb-progress">
+        <span class="t" id="tCur">0:00</span>
+        <input type="range" class="range" id="seek" min="0" max="1000" value="0" step="1" aria-label="Posição na música">
+        <span class="t" id="tDur">0:00</span>
+      </div>
+    </div>
+    <div class="nb-right">
+      <div class="menu-wrap">
+        <button class="pill-ghost" id="btnSpeed" title="Velocidade" aria-label="Velocidade">100%</button>
+        <div class="menu up" id="speedMenu" hidden>
+          <div class="menu-label">Velocidade</div>
+          <button data-speed="1" class="on">100% (normal)</button>
+          <button data-speed="0.85">85%</button>
+          <button data-speed="0.75">75%</button>
+          <button data-speed="0.6">60%</button>
+          <button data-speed="0.5">50% (bem devagar)</button>
+          <hr>
+          <div class="menu-label">Cursor × som</div>
+          <div class="sync-row">
+            <button class="sync-b" data-sync="-10" title="Cursor mais tarde" aria-label="Cursor mais tarde">−</button>
+            <span class="sync-val" id="syncVal">padrão</span>
+            <button class="sync-b" data-sync="10" title="Cursor mais cedo" aria-label="Cursor mais cedo">+</button>
+          </div>
+          <p class="sync-hint">Cursor chegando depois da nota? Aperte <b>+</b>. Antes? Aperte <b>−</b>. <button class="sync-reset" id="syncReset" data-sync="0" hidden>Voltar ao padrão</button></p>
+        </div>
+      </div>
+      <button class="ctl-btn" id="btnMixer" title="Mesa de som: volume, equalizador e pan de cada parte" aria-label="Mesa de som" aria-expanded="false" aria-controls="mixer"><svg class="i"><use href="#i-sliders"/></svg></button>
+      <button class="ctl-btn" id="btnMute" title="Volume" aria-label="Silenciar"><svg class="i" id="volIcon"><use href="#i-vol"/></svg></button>
+      <input type="range" class="range vol" id="volume" min="0" max="1" step="0.01" value="1" aria-label="Volume">
+    </div>
+  </footer>
+</div>
+
+<!-- Modo Show: partitura gigante com um show ao vivo atrás -->
+<section class="show" id="show" hidden aria-label="Modo Show">
+  <video class="show-media" id="showVideo" muted loop playsinline hidden></video>
+  <img class="show-media" id="showImage" alt="" hidden>
+  <div class="show-shade" id="showShade" hidden></div>
+  <canvas class="show-canvas" id="showCanvas" aria-hidden="true"></canvas>
+  <input type="file" id="bgInput" accept="video/*,image/*" hidden>
+  <div class="show-top">
+    <div class="show-song">
+      <div class="cover sm" id="showCover"></div>
+      <div class="show-song-text"><b id="showTitle"></b><span id="showMeta"></span></div>
+    </div>
+    <div class="show-score" id="showScore" hidden>
+      <div class="ss-item"><span>Pontos</span><b id="ssPoints">0</b></div>
+      <div class="ss-item"><span>Combo</span><b id="ssCombo">x0</b></div>
+      <div class="ss-item ss-energy"><span>Plateia</span><div class="meter"><i id="ssEnergy"></i></div></div>
+    </div>
+    <div class="show-actions">
+      <div class="menu-wrap">
+        <button class="icon-btn lg" id="btnShowBg" title="Trocar o fundo" aria-label="Trocar o fundo"><svg class="i"><use href="#i-image"/></svg></button>
+        <div class="menu" id="bgMenu" hidden>
+          <div class="menu-label">Fundo do show</div>
+          <button id="bgMesa" data-scene="mesa">Mesa de samba à noite</button>
+          <button id="bgRoda" data-scene="roda">Roda de samba com músicos</button>
+          <button id="bgFile">Usar um vídeo ou foto meu…</button>
+        </div>
+      </div>
+      <button class="icon-btn lg" id="btnShowFull" title="Tela cheia" aria-label="Tela cheia"><svg class="i"><use href="#i-full"/></svg></button>
+      <button class="icon-btn lg" id="btnShowClose" title="Sair do Modo Show (Esc)" aria-label="Sair do Modo Show"><svg class="i"><use href="#i-x"/></svg></button>
+    </div>
+  </div>
+  <aside class="show-hud">
+    <span class="hud-label">Agora</span>
+    <div class="hud-chord" id="hudChord">—</div>
+    <div class="hud-diagram" id="hudDiagram"></div>
+    <div class="hud-next"><span>Depois</span><b id="hudNext">—</b></div>
+    <div class="hud-beats" id="hudBeats"><i>1</i><i>2</i><i>3</i><i>4</i></div>
+    <div class="hud-heard" id="hudHeard" hidden><span>Você tocou</span><b id="hudHeardNote">—</b></div>
+    <div class="hud-feedback" id="hudFeedback"></div>
+  </aside>
+  <div class="show-strip" id="showStrip">
+    <div class="strip-track" id="stripTrack"><div class="strip-marks" id="stripMarks"></div><div id="osmdShow"></div></div>
+    <div class="strip-playhead" aria-hidden="true"></div>
+    <div class="strip-loading" id="stripLoading">Preparando a partitura…</div>
+  </div>
+  <div class="show-lyric" id="showLyric"></div>
+  <div class="show-bottom">
+    <button class="play-btn xl" id="showPlay" aria-label="Tocar">
+      <svg class="i i-play"><use href="#i-play"/></svg><svg class="i i-pause"><use href="#i-pause"/></svg>
+    </button>
+    <div class="show-progress"><span id="showTime">0:00</span><div class="sp-bar"><i id="showBar"></i></div></div>
+  </div>
+
+  <div class="show-layer" id="showIntro">
+    <div class="intro-card">
+      <span class="kicker">Modo Show</span>
+      <h2>Você na roda</h2>
+      <p>A partitura passa na esteira, no tempo da música, e o samba toca junto com você.</p>
+      <div class="intro-actions">
+        <button class="pill-green" id="btnShowStart">Começar o show</button>
+      </div>
+      <div class="intro-modes">
+        <button class="mode-card" id="btnShowChords">
+          <svg class="i"><use href="#i-mic"/></svg>
+          <b>Valendo pontos: acordes</b>
+          <span>Violão, cavaco ou teclado. O microfone confere cada acorde no tempo.</span>
+          <span class="premium-badge">Premium</span>
+        </button>
+        <button class="mode-card" id="btnShowMelody">
+          <svg class="i"><use href="#i-mic"/></svg>
+          <b>Valendo pontos: melodia</b>
+          <span>Voz, sopro ou teclado de uma nota. O microfone identifica cada nota tocada.</span>
+          <span class="premium-badge">Premium</span>
+        </button>
+      </div>
+      <p class="intro-note">A parte que você vai tocar sai da gravação. Use fone de ouvido, para o microfone ouvir só você. Nesta versão de teste o Premium está liberado.</p>
+    </div>
+  </div>
+  <div class="show-layer count" id="showCount" hidden></div>
+  <div class="show-layer" id="showResult" hidden>
+    <div class="intro-card">
+      <span class="kicker">Fim do show</span>
+      <div class="stars" id="resStars"></div>
+      <h2 id="resTitle"></h2>
+      <div class="res-grid">
+        <div><b id="resPoints">0</b><span>pontos</span></div>
+        <div><b id="resAcc">0%</b><span>de acerto</span></div>
+        <div><b id="resCombo">0</b><span>combo máximo</span></div>
+      </div>
+      <div class="intro-actions">
+        <button class="pill-green" id="btnShowAgain">Tocar de novo</button>
+        <button class="pill-outline" id="btnShowExit">Sair</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="modal" id="lyricsModal" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="lyricsTitle">
+    <h2 id="lyricsTitle">Letra da música</h2>
+    <p>Escolha uma versão da base aberta, ou abra no Letras, copie a letra (pode ser a cifra inteira) e toque em <b>Colar e encaixar</b>. O Pauta Viva encaixa cada palavra no momento em que ela é cantada.</p>
+    <div class="lyr-search">
+      <label class="search lyr-q">
+        <svg class="i"><use href="#i-search"/></svg>
+        <input id="lyrQuery" type="search" placeholder="Artista e nome da música" autocomplete="off" aria-label="Artista e nome da música">
+      </label>
+      <button class="pill-white sm" id="lyrSearch">Buscar</button>
+      <a class="link-btn" id="lyrWeb" target="_blank" rel="noopener">Abrir no Letras</a>
+    </div>
+    <div class="lyr-results" id="lyrResults" hidden></div>
+    <textarea id="lyricsText" spellcheck="false" placeholder="Ou cole a letra aqui, uma frase por linha"></textarea>
+    <div class="row">
+      <button class="pill-accent" id="lyricsPaste">Colar e encaixar</button>
+      <button class="pill-outline" id="lyricsSave">Encaixar o texto acima</button>
+      <button class="pill-outline" id="lyricsCancel">Cancelar</button>
+    </div>
+    <div class="row lyr-more">
+      <button class="link-btn" id="lyricsRecog">Reconhecer a voz de novo, com o modelo grande</button>
+      <button class="link-btn" id="lyricsAuto" hidden>Desfazer a letra colada</button>
+    </div>
+  </div>
+</div>
+
+<div class="drop-overlay" id="dropOverlay" hidden><div>Solte para transcrever</div></div>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script src="/static/vendor/opensheetmusicdisplay.min.js"></script>
+<script src="/static/chords.js"></script>
+<script src="/static/viz.js"></script>
+<script src="/static/stage.js"></script>
+<script src="/static/mesa.js"></script>
+<script src="/static/game.js"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+{
+  "titulo": "Mumuzinho - Frases de Amor",
+  "fonte": "Cifra Club (trecho: introdução e as duas primeiras voltas da estrofe), só os acordes",
+  "tom": "Mi♭ maior",
+  "trecho": true,
+  "acordes": ["Eb", "B", "Gb", "Db", "Eb", "Ab9/C", "Eb/Bb", "Ab9",
+              "Eb9", "Fm/Eb", "Bb/D", "Eb4", "Eb", "Ab7M", "Gm7", "Db7M(9)", "Fm7(11)", "Ab/Bb",
+              "Eb9", "Fm7", "Bb/D", "Eb4", "Eb"]
+}

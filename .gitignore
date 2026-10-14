@@ -1,0 +1,25 @@
+# Ambiente Python (cada computador cria o seu pelo iniciar.bat)
+.venv/
+__pycache__/
+*.py[cod]
+
+# Músicas da pessoa: áudio, stems e análises (direito autoral e tamanho)
+data/songs/
+
+# Modelos grandes baixados no primeiro uso (ex.: separação máxima, 667 MB)
+data/models/
+
+# Preferências locais (modo de qualidade)
+data/config.json
+
+# Logs e temporários
+*.log
+*.tmp
+instalacao.log
+
+# Ferramentas locais de desenvolvimento
+.claude/
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
