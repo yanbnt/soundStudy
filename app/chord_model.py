@@ -18,7 +18,7 @@ FRAME_SEC = 10.0 / TIMESTEP
 N_CLASSES = 170
 QUALITIES = ["min", "maj", "dim", "aug", "min6", "maj6", "min7", "minmaj7", "maj7", "7", "dim7",
              "hdim7", "sus2", "sus4"]
-# tipo do BTC -> tipo do Pauta Viva (analysis.CHORD_TYPES)
+# tipo do BTC -> tipo do soundStudy (analysis.CHORD_TYPES)
 KIND = {"min": "min", "maj": "maj", "dim": "dim", "aug": "aug", "min6": "m6", "maj6": "6",
         "min7": "m7", "minmaj7": "mmaj7", "maj7": "maj7", "7": "7", "dim7": "dim7",
         "hdim7": "m7b5", "sus2": "sus2", "sus4": "sus4"}

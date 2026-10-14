@@ -2,7 +2,7 @@
   <img src="docs/img/logo.png" width="96" alt="">
 </p>
 
-<h1 align="center">Pauta Viva</h1>
+<h1 align="center">soundStudy</h1>
 
 <p align="center">
   A música que você quer aprender, em partitura, cifra, letra e tablatura, andando junto com o som.<br>
@@ -13,7 +13,7 @@
 
 ## O que é
 
-Você escolhe uma gravação (MP3, WAV, M4A, FLAC ou OGG) e o Pauta Viva:
+Você escolhe uma gravação (MP3, WAV, M4A, FLAC ou OGG) e o soundStudy:
 
 - **separa** a música em voz, violão, teclado, cavaco, baixo e percussão;
 - **acha** o andamento, o compasso, o tom e os acordes (cifra no padrão brasileiro);
@@ -29,13 +29,13 @@ e buscar a letra e a capa de cada música.
 
 ## Instalar
 
-1. Baixe o instalador `PautaViva-Setup-<versão>.exe` na página de **Releases** deste repositório.
+1. Baixe o instalador `soundStudy-Setup-<versão>.exe` na página de **Releases** deste repositório.
 2. Abra e siga as telas (não precisa de administrador). O instalador baixa o Python e os componentes de
    inteligência artificial: de 1,5 a 4 GB, de 10 a 40 minutos, conforme a internet e o computador.
-3. Abra o **Pauta Viva** pelo atalho na área de trabalho ou no menu Iniciar.
+3. Abra o **soundStudy** pelo atalho na área de trabalho ou no menu Iniciar.
 
 Sem o instalador: baixe o código (Code → Download ZIP), extraia numa pasta de caminho curto
-(por exemplo `C:\PautaViva`) e abra o `iniciar.bat`.
+(por exemplo `C:\soundStudy`) e abra o `iniciar.bat`.
 
 ## Requisitos
 
@@ -64,11 +64,11 @@ reconhecimento de letra mais preciso. Sem ela, leva de 3 a 4 vezes a duração d
 Rodar em desenvolvimento: `iniciar.bat` (cria o ambiente na primeira vez e abre em http://127.0.0.1:8765).
 
 Gerar o instalador: `.venv\Scripts\python.exe instalador\gerar.py` e depois
-`"%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe" instalador\PautaViva.iss` (sai em `dist\`).
+`"%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe" instalador\soundStudy.iss` (sai em `dist\`).
 
 ## Uso e responsabilidade
 
-O Pauta Viva é feito exclusivamente para estudo. As obras, as gravações, as letras e as capas pertencem aos
+O soundStudy é feito exclusivamente para estudo. As obras, as gravações, as letras e as capas pertencem aos
 seus titulares; o material gerado é para uso pessoal, e a sua divulgação sem autorização é proibida.
 Veja o termo completo no instalador (`instalador/gerar.py`, seção TERMO) e os créditos em
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

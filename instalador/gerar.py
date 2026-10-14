@@ -1,4 +1,4 @@
-"""Gera as imagens e os textos do instalador (rode antes de compilar o PautaViva.iss).
+"""Gera as imagens e os textos do instalador (rode antes de compilar o soundStudy.iss).
 
     .venv\\Scripts\\python.exe instalador\\gerar.py
 
@@ -7,13 +7,13 @@
 - sobre.rtf: para que serve o programa, internet e requisitos mínimos;
 - termo.rtf: termo de uso e responsabilidade (o instalador só segue se a pessoa aceitar).
 
-O nome do programa fica em NOME (o mesmo #define AppName do PautaViva.iss).
+O nome do programa fica em NOME (o mesmo #define AppName do soundStudy.iss).
 """
 from pathlib import Path
 
 from PIL import Image, ImageChops, ImageDraw, ImageFont, ImageOps
 
-NOME = ("Pauta", "Viva")  # parte em negrito e parte em itálico, como na logo do app
+NOME = ("sound", "Study")  # parte em negrito e parte em itálico, emendadas, como na logo do app
 AQUI = Path(__file__).resolve().parent
 LOGO = AQUI.parent / "docs" / "img" / "logo.png"
 ESCALAS = (100, 125, 150, 175, 200)
@@ -61,7 +61,7 @@ def lateral(escala):
     m = _marca(lado)
     img.alpha_composite(m, ((w - lado) // 2, round(h * 0.25)))
     f1, f2 = _fonte("georgiab.ttf", round(23 * k)), _fonte("georgiai.ttf", round(23 * k))
-    t1, t2 = NOME[0] + " ", NOME[1]
+    t1, t2 = NOME
     w1, w2 = d.textlength(t1, font=f1), d.textlength(t2, font=f2)
     x = (w - (w1 + w2)) / 2
     y = round(h * 0.25) + lado + round(16 * k)
@@ -112,7 +112,7 @@ def rtf(blocos):
     return "\n".join(partes)
 
 
-APP = " ".join(NOME)
+APP = "".join(NOME)
 
 SOBRE = [
     ("titulo", f"{APP}: partitura, cifra, letra e tablatura da música que você quer aprender"),

@@ -2867,7 +2867,7 @@
     $('#procTitle').textContent = file.name.replace(/\.[^.]+$/, '');
     $('#topTitle').textContent = $('#procTitle').textContent;
     $('#procEyebrow').textContent = 'Enviando arquivo';
-    $('#procEta').textContent = 'subindo para o Pauta Viva';
+    $('#procEta').textContent = 'subindo para o soundStudy';
     $('#procBar').style.width = '0%';
     renderStages(null);
     const fd = new FormData();

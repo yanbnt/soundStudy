@@ -12,7 +12,7 @@ import urllib.parse
 import urllib.request
 
 API = "https://lrclib.net/api"
-USER_AGENT = "PautaViva/0.2 (app local de estudo de musica)"
+USER_AGENT = "soundStudy/0.2 (app local de estudo de musica)"
 JUNK = (r"\b(lan[cç]amento|clipe|oficial|official|video|v[ií]deo|lyrics?|letra|audio|[aá]udio|hd|hq|4k|"
         r"ao vivo|live|ac[uú]stico|remix|cover|karaok[eê]|dvd|cd|feat\.?|part\.?|ft\.?)\b")
 

@@ -1,11 +1,11 @@
 @echo off
 setlocal
 cd /d "%~dp0"
-title Pauta Viva
+title soundStudy
 set "HF_HUB_DISABLE_SYMLINKS_WARNING=1"
 set "LOG=%~dp0instalacao.log"
 
-rem Se o Pauta Viva ja estiver aberto, so abre o navegador.
+rem Se o soundStudy ja estiver aberto, so abre o navegador.
 powershell -NoProfile -Command "try { Invoke-WebRequest http://127.0.0.1:8765/api/stages -UseBasicParsing -TimeoutSec 2 | Out-Null; exit 0 } catch { exit 1 }"
 if %errorlevel%==0 (
   start "" http://127.0.0.1:8765
@@ -14,7 +14,7 @@ if %errorlevel%==0 (
 
 echo.
 echo    ================================================
-echo      PAUTA VIVA  -  leia tocando
+echo      soundStudy
 echo    ================================================
 echo.
 
@@ -38,7 +38,7 @@ if not defined PY goto :semPython
 
 rem ---------------------------------------------------------------- 2. ambiente
 :ambiente
-echo    [2/4] Criando o ambiente do Pauta Viva...
+echo    [2/4] Criando o ambiente do soundStudy...
 "%PY%" -m venv .venv >>"%LOG%" 2>&1 || goto :erro
 ".venv\Scripts\python.exe" -m pip install --upgrade pip >>"%LOG%" 2>&1 || goto :erro
 
@@ -64,14 +64,14 @@ copy /y requirements.txt ".venv\pauta_requirements.txt" >nul
 rem ---------------------------------------------------------------- 4. atalho
 :atalho
 if exist ".venv\atalho_criado" goto :rodar
-echo    [4/4] Criando o atalho "Pauta Viva" na area de trabalho...
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$d = [Environment]::GetFolderPath('Desktop'); $s = (New-Object -ComObject WScript.Shell).CreateShortcut((Join-Path $d 'Pauta Viva.lnk')); $s.TargetPath = '%~dp0iniciar.bat'; $s.WorkingDirectory = '%~dp0'; $s.IconLocation = '%~dp0web\pauta-viva.ico'; $s.Description = 'Pauta Viva - leia tocando'; $s.WindowStyle = 7; $s.Save()" >>"%LOG%" 2>&1
+echo    [4/4] Criando o atalho "soundStudy" na area de trabalho...
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$d = [Environment]::GetFolderPath('Desktop'); $s = (New-Object -ComObject WScript.Shell).CreateShortcut((Join-Path $d 'soundStudy.lnk')); $s.TargetPath = '%~dp0iniciar.bat'; $s.WorkingDirectory = '%~dp0'; $s.IconLocation = '%~dp0web\soundstudy.ico'; $s.Description = 'soundStudy'; $s.WindowStyle = 7; $s.Save()" >>"%LOG%" 2>&1
 type nul > ".venv\atalho_criado"
 
 :rodar
 set "PAUTA_ABRIR_NAVEGADOR=1"
 echo.
-echo    Pauta Viva rodando em http://127.0.0.1:8765
+echo    soundStudy rodando em http://127.0.0.1:8765
 echo    Deixe esta janela aberta enquanto usa. Para fechar, feche esta janela.
 echo.
 ".venv\Scripts\python.exe" -m uvicorn app.server:app --host 127.0.0.1 --port 8765 --log-level warning
@@ -79,7 +79,7 @@ goto :eof
 
 :semPython
 echo.
-echo    Sem o Python 3.12 o Pauta Viva nao funciona.
+echo    Sem o Python 3.12 o soundStudy nao funciona.
 echo    Baixe em https://www.python.org/downloads/ (marque "Add python.exe to PATH")
 echo    e abra este arquivo de novo.
 echo.

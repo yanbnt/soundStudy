@@ -1,4 +1,4 @@
-# Pauta Viva
+# soundStudy
 
 App que transforma uma música (MP3, WAV, M4A…) em **partitura, cifras e letra sincronizadas com o áudio**, para quem está aprendendo a ler e tocar. Roda no computador do usuário (Windows), sem internet depois de instalado.
 
@@ -14,7 +14,7 @@ Plano de negócio (Claude Docs): https://claude.ai/code/artifact/d81bf2c1-bd90-4
 
 ## Como rodar
 
-- Pasta: `C:\Users\Make\Documents\Pauta Viva`
+- Pasta: `C:\Users\Make\Documents\soundStudy` (pasta de desenvolvimento, ainda com o nome antigo)
 - Usuário final: dois cliques em `iniciar.bat` (na primeira vez cria o `.venv` e instala o `requirements.txt`; abre `http://127.0.0.1:8765`). Se o servidor já estiver no ar, só abre o navegador.
 - Desenvolvimento:
   - `.venv\Scripts\python.exe -m uvicorn app.server:app --host 127.0.0.1 --port 8765`
@@ -103,12 +103,12 @@ Acordes por tempo usam Viterbi com custo de troca por posição no compasso (bar
 
 ## Instalador do Windows (`instalador/`)
 
-- `PautaViva.iss` (Inno Setup 6.7, modo escuro) gera `dist\PautaViva-Setup-<versão>.exe` (38 MB), que vai para as
+- `soundStudy.iss` (Inno Setup 6.7, modo escuro) gera `dist\soundStudy-Setup-<versão>.exe` (38 MB), que vai para as
   **Releases** do GitHub (o `dist/` fica fora do Git). Telas: boas-vindas, **Sobre o programa** (objetivo 100%
   didático, o que precisa de internet, requisitos mínimos e recomendados), **Termo de uso e responsabilidade**
   (aceito/não aceito; inclui que não nos responsabilizamos pela divulgação não autorizada das partituras), pasta,
   atalho, instalação e conclusão. Desinstalador em "Aplicativos" (pergunta se apaga as músicas transcritas).
-- Instala por usuário em `%LOCALAPPDATA%\Programs\PautaViva` (sem administrador). Baixa o **Python 3.12.10 oficial
+- Instala por usuário em `%LOCALAPPDATA%\Programs\soundStudy` (sem administrador). Baixa o **Python 3.12.10 oficial
   do NuGet** (conferido pelo SHA-256) para `python\tools`, cria o `.venv`, instala os componentes (PyTorch com CUDA
   se houver `nvidia-smi`) e grava os marcadores que o `iniciar.bat` usa (`pauta_requirements.txt`, `atalho_criado`).
 - `gerar.py` gera as imagens (marca em P&B) e os textos RTF; o nome do app fica em `NOME` lá e em `AppName` no `.iss`.
@@ -174,4 +174,4 @@ Próximos passos (nesta ordem):
 7. **Segunda parte do sistema (separada deste app):** aplicação web de **teoria musical** completa e intuitiva, **mais gráfica do que escrita**, com **apresentações**, **provas** e **questões**. Pedido do usuário em 14/10/2026.
 8. **Login** (conta da pessoa), junto com a parte web.
 9. Por último: rede social (decisão do usuário).
-10. Nome: o usuário não gostou de "Pauta Viva" (14/10/2026); está escolhendo outro. O repositório pode ser renomeado no GitHub sem perder nada.
+10. Nome: o usuário não gostou de "soundStudy" (14/10/2026); está escolhendo outro. O repositório pode ser renomeado no GitHub sem perder nada.

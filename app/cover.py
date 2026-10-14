@@ -20,7 +20,7 @@ import urllib.request
 from . import lyrics_api as LA
 
 BUSCAR_NA_INTERNET = True
-USER_AGENT = "PautaViva/0.2 (app local de estudo de musica)"
+USER_AGENT = "soundStudy/0.2 (app local de estudo de musica)"
 NAME = "cover.jpg"
 
 

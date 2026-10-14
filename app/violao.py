@@ -215,7 +215,7 @@ def write_musicxml(path, title, key, bpm, n_beats, chords, tab, spb, beat_ql):
          '"http://www.musicxml.org/dtds/partwise.dtd">',
          '<score-partwise version="4.0">',
          f'<work><work-title>{escape(title)}</work-title></work>',
-         '<identification><creator type="composer">Transcrição automática — Pauta Viva</creator></identification>',
+         '<identification><creator type="composer">Transcrição automática — soundStudy</creator></identification>',
          '<part-list><score-part id="P1"><part-name>Violão</part-name></score-part></part-list>',
          '<part id="P1">']
 

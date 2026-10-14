@@ -409,7 +409,7 @@ def start_worker():
         if mp.exists() and json.loads(mp.read_text(encoding="utf-8")).get("status") in (
                 "queued", "processing"):
             enqueue(d.name)
-    threading.Thread(target=_worker, daemon=True, name="pauta-viva-worker").start()
+    threading.Thread(target=_worker, daemon=True, name="soundstudy-worker").start()
 
 
 def queue_position(sid):

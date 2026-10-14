@@ -1,4 +1,4 @@
-"""Servidor local do Pauta Viva: API + interface web."""
+"""Servidor local do soundStudy: API + interface web."""
 import json
 import os
 import re
@@ -32,7 +32,7 @@ async def lifespan(_app):
     yield
 
 
-app = FastAPI(title="Pauta Viva", lifespan=lifespan)
+app = FastAPI(title="soundStudy", lifespan=lifespan)
 
 
 @app.middleware("http")

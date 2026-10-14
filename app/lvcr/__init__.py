@@ -26,7 +26,7 @@ NINTH = {"none": 0, "9": 1, "#9": 2, "b9": 3}
 ELEVENTH = {"none": 0, "11": 1, "#11": 2}
 THIRTEENTH = {"none": 0, "13": 1, "b13": 2}
 
-# vocabulário "submission" do artigo: (nome, tríade, intervalo do baixo, 7ª, 9ª, 11ª, 13ª, tipo do Pauta Viva)
+# vocabulário "submission" do artigo: (nome, tríade, intervalo do baixo, 7ª, 9ª, 11ª, 13ª, tipo do soundStudy)
 VOCAB = [
     ("maj", "maj", 0, 0, 0, 0, 0, "maj"),
     ("min", "min", 0, 0, 0, 0, 0, "min"),
@@ -152,7 +152,7 @@ def frame_probs(y, progress=None):
 
 
 def vocabulary():
-    """Rótulos do vocabulário: (raiz, tipo do Pauta Viva, baixo ou None); o último é "sem acorde"."""
+    """Rótulos do vocabulário: (raiz, tipo do soundStudy, baixo ou None); o último é "sem acorde"."""
     labels = []
     for root in range(12):
         for name, triad, bass_iv, *_rest, kind in VOCAB:

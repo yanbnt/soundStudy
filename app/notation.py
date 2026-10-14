@@ -142,7 +142,7 @@ def write_score(path, title, key, bpm, n_beats, chords, notes, subdiv, shift, be
     score = stream.Score()
     score.metadata = metadata.Metadata()
     score.metadata.title = title
-    score.metadata.composer = "Transcrição automática — Pauta Viva"
+    score.metadata.composer = "Transcrição automática — soundStudy"
     score.insert(0, part)
     for meas in part.getElementsByClass(stream.Measure):
         meas.makeBeams(inPlace=True)

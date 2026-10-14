@@ -1,6 +1,6 @@
 # Avisos de terceiros
 
-O Pauta Viva usa programas, bibliotecas e modelos de outras pessoas e empresas. Cada um tem a sua
+O soundStudy usa programas, bibliotecas e modelos de outras pessoas e empresas. Cada um tem a sua
 licença, e os créditos ficam aqui.
 
 ## Incluídos no programa

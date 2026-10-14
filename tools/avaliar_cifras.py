@@ -1,4 +1,4 @@
-"""Prova das cifras: compara os acordes que o Pauta Viva achou com o gabarito de cada música.
+"""Prova das cifras: compara os acordes que o soundStudy achou com o gabarito de cada música.
 
 Gabaritos em data/gabarito/<id da música>.json, só com os nomes dos acordes, na ordem (sem letra):
     {"titulo": "...", "acordes": ["Eb", "B", "Fm/Eb", "Ab7M", ...], "trecho": true}
@@ -24,7 +24,7 @@ ROOT = Path(__file__).resolve().parent.parent
 SONGS = ROOT / "data" / "songs"
 GABARITO = ROOT / "data" / "gabarito"
 PC = {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11}
-# tipo do Pauta Viva -> (família, sétima)
+# tipo do soundStudy -> (família, sétima)
 KIND = {"maj": ("maj", None), "min": ("min", None), "7": ("maj", "7"), "m7": ("min", "7"),
         "maj7": ("maj", "7M"), "m7b5": ("dim", "7"), "dim7": ("dim", "°7"), "m6": ("min", None),
         "mmaj7": ("min", "7M"), "6": ("maj", None), "aug": ("aug", None), "dim": ("dim", None),

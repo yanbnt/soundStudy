@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Pauta Viva</title>
+<title>soundStudy</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='10' fill='white'/%3E%3Cg fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round'%3E%3Cpath id='w' d='M5 0H14C16 0 17.2 1.1 18.7 1.1S22.6-2.6 25.4-2.6 29.6 3.5 32.5 3.5 35.2 1 36 0' transform='translate(0 11)'/%3E%3Cpath d='M5 0H14C16 0 17.2 1.1 18.7 1.1S22.6-2.6 25.4-2.6 29.6 3.5 32.5 3.5 35.2 1 36 0' transform='translate(0 15.5)'/%3E%3Cpath d='M5 0H14C16 0 17.2 1.1 18.7 1.1S22.6-2.6 25.4-2.6 29.6 3.5 32.5 3.5 35.2 1 36 0' transform='translate(0 20)'/%3E%3Cpath d='M5 0H14C16 0 17.2 1.1 18.7 1.1S22.6-2.6 25.4-2.6 29.6 3.5 32.5 3.5 35.2 1 36 0' transform='translate(0 24.5)'/%3E%3Cpath d='M5 0H14C16 0 17.2 1.1 18.7 1.1S22.6-2.6 25.4-2.6 29.6 3.5 32.5 3.5 35.2 1 36 0' transform='translate(0 29)'/%3E%3Cpath d='M13.15 21.3V6.5'/%3E%3C/g%3E%3Cellipse cx='9.6' cy='22.25' rx='3.8' ry='2.75' transform='rotate(-22 9.6 22.25)'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="/static/style.css">
 </head>
@@ -42,7 +42,7 @@
   <symbol id="i-pandeiro" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="5"/><path d="M12 3.5v2.4M12 18.1v2.4M3.5 12h2.4M18.1 12h2.4M6 6l1.7 1.7M16.3 16.3 18 18M18 6l-1.7 1.7M7.7 16.3 6 18"/></symbol>
   <symbol id="i-stems" viewBox="0 0 24 24"><path d="M3 6h4l1.5-2.5 2 5 1.5-2.5H21M3 12h7l1.5-2.5 2 5 1.5-2.5H21M3 18h2l1.5-2.5 2 5 1.5-2.5H21"/></symbol>
   <symbol id="i-guitar" viewBox="0 0 24 24"><path d="m13.5 10.5 7-7M19 2l3 3M12.6 9.6c-1.3-1.3-3.5-1.1-4.6.4-.5.7-.7 1.5-1.6 1.9-.9.4-2 .3-2.9 1.2-2 2-1.6 5.3.6 7.5s5.5 2.6 7.5.6c.9-.9.8-2 1.2-2.9.4-.9 1.2-1.1 1.9-1.6 1.5-1.1 1.7-3.3.4-4.6z"/><circle cx="10" cy="14.2" r="1.5"/></symbol>
-  <!-- marca do Pauta Viva: a pauta que vira onda de som -->
+  <!-- marca do soundStudy: a pauta que vira onda de som -->
   <symbol id="i-logo" viewBox="0 0 40 40">
     <g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
       <path d="M5 0H14C16 0 17.2 1.1 18.7 1.1S22.6-2.6 25.4-2.6 29.6 3.5 32.5 3.5 35.2 1 36 0" transform="translate(0 11)"/>
@@ -58,7 +58,7 @@
 
 <div class="app no-song" id="app">
   <header class="topbar">
-    <a class="logo" href="#" id="brandLink" aria-label="Pauta Viva, início">
+    <a class="logo" href="#" id="brandLink" aria-label="soundStudy, início">
       <span class="logo-mark" aria-hidden="true">
         <svg viewBox="0 0 40 40">
           <g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
@@ -69,7 +69,7 @@
           <ellipse cx="9.6" cy="22.25" rx="3.8" ry="2.75" transform="rotate(-22 9.6 22.25)" fill="currentColor" stroke="#fff" stroke-width="1.1" paint-order="stroke"/><path d="M13.15 21.3V17" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
         </svg>
       </span>
-      <span class="logo-word"><span class="logo-name">Pauta <i>Viva</i></span></span>
+      <span class="logo-word"><span class="logo-name">sound<i>Study</i></span></span>
     </a>
     <div class="tb-center">
       <button class="home-btn" id="btnHome" aria-label="Início" title="Início"><svg class="i"><use href="#i-home"/></svg></button>
@@ -108,7 +108,7 @@
     <ul class="lib-list" id="songList"></ul>
     <div class="lib-empty" id="libEmpty">
       <b>Transcreva sua primeira música</b>
-      <span>Solte um MP3 aqui e o Pauta Viva escreve a partitura e as cifras.</span>
+      <span>Solte um MP3 aqui e o soundStudy escreve a partitura e as cifras.</span>
       <button class="pill-white sm" id="btnUpload3">Escolher arquivo</button>
     </div>
     <section class="hand-card" id="handCard" hidden aria-label="Como tocar o acorde de agora">
@@ -134,7 +134,7 @@
       <div class="home-hero">
         <canvas class="home-canvas" id="homeCanvas" aria-hidden="true"></canvas>
         <div class="home-copy">
-          <span class="hero-kicker">Pauta Viva</span>
+          <span class="hero-kicker">soundStudy</span>
           <h1 id="greeting">Olá</h1>
           <p>Solte uma música e veja a partitura, as cifras e a letra andando junto com o som.</p>
         </div>
@@ -145,7 +145,7 @@
           <div class="drop-text">
             <span class="kicker">Nova transcrição</span>
             <h2>Solte uma música aqui</h2>
-            <p>MP3, WAV, M4A, FLAC ou OGG. O Pauta Viva separa a voz e os instrumentos, acha o tom e os acordes e escreve a melodia na pauta.</p>
+            <p>MP3, WAV, M4A, FLAC ou OGG. O soundStudy separa a voz e os instrumentos, acha o tom e os acordes e escreve a melodia na pauta.</p>
           </div>
           <span class="pill-green">Escolher arquivo</span>
         </div>
@@ -215,7 +215,7 @@
           <span class="hero-kind">Transcrição</span>
           <h1 class="hero-title" id="songTitle" title="Clique para renomear"></h1>
           <div class="hero-meta">
-            <span class="logo-dot"><svg viewBox="0 0 40 40"><use href="#i-logo"/></svg></span><b>Pauta Viva</b>
+            <span class="logo-dot"><svg viewBox="0 0 40 40"><use href="#i-logo"/></svg></span><b>soundStudy</b>
             <span class="dot">•</span><span id="factKey"></span>
             <span class="dot">•</span><span id="factBpm"></span>
             <span class="dot">•</span><span id="factMeter">4/4</span>
@@ -493,7 +493,7 @@
 <div class="modal" id="lyricsModal" hidden>
   <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="lyricsTitle">
     <h2 id="lyricsTitle">Letra da música</h2>
-    <p>Escolha uma versão da base aberta, ou abra no Letras, copie a letra (pode ser a cifra inteira) e toque em <b>Colar e encaixar</b>. O Pauta Viva encaixa cada palavra no momento em que ela é cantada.</p>
+    <p>Escolha uma versão da base aberta, ou abra no Letras, copie a letra (pode ser a cifra inteira) e toque em <b>Colar e encaixar</b>. O soundStudy encaixa cada palavra no momento em que ela é cantada.</p>
     <div class="lyr-search">
       <label class="search lyr-q">
         <svg class="i"><use href="#i-search"/></svg>

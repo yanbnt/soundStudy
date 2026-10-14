@@ -1,19 +1,19 @@
-; Instalador do Pauta Viva para Windows (Inno Setup 6.7 ou mais novo).
+; Instalador do soundStudy para Windows (Inno Setup 6.7 ou mais novo).
 ;
 ; Para gerar o instalador:
 ;   1. .venv\Scripts\python.exe instalador\gerar.py        (imagens e textos)
-;   2. "%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe" instalador\PautaViva.iss
-; Sai em dist\PautaViva-Setup-<versão>.exe (fora do Git: vai para as versões do GitHub).
+;   2. "%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe" instalador\soundStudy.iss
+; Sai em dist\soundStudy-Setup-<versão>.exe (fora do Git: vai para as versões do GitHub).
 ;
 ; O que ele faz: copia o programa para a pasta da pessoa (não precisa de administrador), baixa o Python
 ; 3.12 oficial (pacote do NuGet, conferido pelo SHA-256), cria o ambiente, instala os componentes (com a
 ; versão para placa NVIDIA quando houver uma), cria os atalhos e registra o desinstalador em "Aplicativos".
 ; Observação: o Inno Setup pede licença comercial quando usado para vender software.
 
-#define AppName "Pauta Viva"
+#define AppName "soundStudy"
 #define AppVersion "0.1.0"
-#define AppPublisher "Pauta Viva"
-#define AppDirName "PautaViva"
+#define AppPublisher "soundStudy"
+#define AppDirName "soundStudy"
 #define PyVersion "3.12.10"
 #define PySize "14515433"
 #define PyHash "0eb85c2dfccccf1b17352de4c397f69194035b7d37149eacc16f1147d93de3b8"
@@ -35,9 +35,9 @@ ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 MinVersion=10.0
 OutputDir=..\dist
-OutputBaseFilename=PautaViva-Setup-{#AppVersion}
-SetupIconFile=..\web\pauta-viva.ico
-UninstallDisplayIcon={app}\web\pauta-viva.ico
+OutputBaseFilename=soundStudy-Setup-{#AppVersion}
+SetupIconFile=..\web\soundstudy.ico
+UninstallDisplayIcon={app}\web\soundstudy.ico
 UninstallDisplayName={#AppName}
 Compression=lzma2/max
 SolidCompression=yes
@@ -100,8 +100,8 @@ Source: "https://api.nuget.org/v3-flatcontainer/python/{#PyVersion}/python.{#PyV
 Name: "{app}\data\songs"
 
 [Icons]
-Name: "{autoprograms}\{#AppName}"; Filename: "{app}\iniciar.bat"; WorkingDir: "{app}"; IconFilename: "{app}\web\pauta-viva.ico"; Comment: "Partitura, cifra, letra e tablatura andando junto com a música"; Flags: runminimized
-Name: "{autodesktop}\{#AppName}"; Filename: "{app}\iniciar.bat"; WorkingDir: "{app}"; IconFilename: "{app}\web\pauta-viva.ico"; Comment: "Partitura, cifra, letra e tablatura andando junto com a música"; Flags: runminimized; Tasks: desktopicon
+Name: "{autoprograms}\{#AppName}"; Filename: "{app}\iniciar.bat"; WorkingDir: "{app}"; IconFilename: "{app}\web\soundstudy.ico"; Comment: "Partitura, cifra, letra e tablatura andando junto com a música"; Flags: runminimized
+Name: "{autodesktop}\{#AppName}"; Filename: "{app}\iniciar.bat"; WorkingDir: "{app}"; IconFilename: "{app}\web\soundstudy.ico"; Comment: "Partitura, cifra, letra e tablatura andando junto com a música"; Flags: runminimized; Tasks: desktopicon
 
 [Run]
 Filename: "{app}\iniciar.bat"; WorkingDir: "{app}"; Description: "Abrir o {#AppName} agora"; Flags: postinstall nowait skipifsilent runminimized
