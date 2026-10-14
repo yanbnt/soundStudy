@@ -1403,14 +1403,15 @@
     $('#stripMarks').appendChild(el);
   }
 
-  // Fundo do show: a foto do artista (a capa da música, padrão), a mesa de samba, a roda com músicos ou um
-  // vídeo/foto da própria pessoa. A escolha fica guardada; o vídeo/foto vale até fechar o app. Música sem
-  // capa cai na mesa de samba.
-  // (a chave antiga, pv.scene, era gravada sozinha com "mesa": por isso a escolha mudou de chave)
+  // Fundo do show: a foto do artista (a capa da música, padrão), as luzes de show na cor da música, a mesa
+  // de samba ou um vídeo/foto da própria pessoa. A escolha fica guardada; o vídeo/foto vale até fechar o
+  // app. Música sem capa cai na mesa de samba.
+  // (a chave antiga, pv.scene, era gravada sozinha com "mesa": por isso a escolha mudou de chave; a "roda
+  // com músicos" saiu e quem tinha escolhido ela ganha as luzes)
   function savedScene() {
     try {
       const v = localStorage.getItem('pv.fundo');
-      return v === 'mesa' || v === 'roda' ? v : 'capa';
+      return v === 'roda' ? 'luzes' : v === 'mesa' || v === 'luzes' ? v : 'capa';
     } catch (_) { return 'capa'; }
   }
 
@@ -1421,13 +1422,13 @@
     });
   }
 
-  // cena desenhada (mesa ou roda), que fica por trás quando o fundo é uma foto ou vídeo
+  // cena desenhada (luzes ou mesa), que fica por trás quando o fundo é uma foto ou vídeo
   function setScene(kind) {
     if (S.stage && S.sceneKind === kind) return;
     if (S.stage) S.stage.destroy();
     S.sceneKind = kind;
     const opts = S.visualHigh ? { scale: 1, fps: 60 } : { scale: 0.6, fps: 30 };
-    S.stage = kind === 'roda' ? new StageScene($('#showCanvas'), showState, opts) : new MesaScene($('#showCanvas'), showState, opts);
+    S.stage = kind === 'luzes' ? new LightsScene($('#showCanvas'), showState, opts) : new MesaScene($('#showCanvas'), showState, opts);
     if (S.showOn) {
       S.stage.resize();
       focusStage();
@@ -1455,7 +1456,7 @@
       $('#showShade').hidden = true;
       $('#showCanvas').style.visibility = '';
       S.bgMedia = null;
-      setScene(S.bgKind === 'roda' ? 'roda' : 'mesa');
+      setScene(S.bgKind === 'luzes' ? 'luzes' : 'mesa');
       if (S.showOn && S.stage) S.stage.paused = false;
     }
     markBg();
@@ -3315,7 +3316,7 @@
     S.heroViz.start();
     S.stageViz.start();
     S.bgKind = savedScene();
-    setScene(S.bgKind === 'roda' ? 'roda' : 'mesa');
+    setScene(S.bgKind === 'luzes' ? 'luzes' : 'mesa');
     markBg();
     S.homeScene = new MesaScene($('#homeCanvas'), showState, S.visualHigh ? { scale: 1, fps: 60 } : { scale: 0.6 });
     S.homeScene.start();
