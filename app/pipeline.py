@@ -86,14 +86,28 @@ def _ffmpeg(*args):
 
 def separate(wav, stems_dir, work, rep, engine):
     """Separa nas 6 partes (motor "rapida" ou "maxima", ver separation.py) e grava cada uma:
-    AAC estéreo para ouvir e WAV mono 22 kHz para a análise."""
+    AAC estéreo para ouvir e WAV mono 22 kHz para a análise. Devolve o motor que de fato separou: se a
+    máxima falhar (memória da placa de vídeo, modelo que não baixou...), a música não dá erro, cai na rápida."""
     import librosa
 
     from . import hardware as H
     from . import separation as SEP
     from .analysis import SR
 
-    parts, sr = SEP.run(engine, wav, H.device(), progress=rep)
+    try:
+        parts, sr = SEP.run(engine, wav, H.device(), progress=rep)
+    except Exception:  # noqa: BLE001
+        if engine != "maxima":
+            raise
+        traceback.print_exc()
+        try:
+            import torch
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()  # libera a placa antes de tentar de novo
+        except Exception:  # noqa: BLE001
+            pass
+        engine = "rapida"
+        parts, sr = SEP.run(engine, wav, H.device(), progress=rep)
     for name, src in parts.items():
         tmp = work / f"{name}_44k.wav"
         sf.write(str(tmp), src.T, sr, subtype="PCM_16")
@@ -101,6 +115,7 @@ def separate(wav, stems_dir, work, rep, engine):
         tmp.unlink()
         mono = librosa.resample(src.mean(axis=0), orig_sr=sr, target_sr=SR)
         sf.write(str(work / f"{name}.wav"), mono, SR, subtype="PCM_16")
+    return engine
 
 
 def analyze(sid, d, work, rep, title, duration, lyrics_model=None):
@@ -361,7 +376,7 @@ def process(sid):
                      for n in STEMS)
     if not have_stems or meta.get("separacao", "rapida") != engine:
         rep.stage("separate")
-        separate(wav, stems_dir, work, rep, engine)
+        engine = separate(wav, stems_dir, work, rep, engine)
         write_meta(sid, separacao=engine)
     write_meta(sid, pedido_separacao=None)
 
