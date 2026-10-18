@@ -275,6 +275,10 @@ Pronto e testado:
     usuário (tempos 12 a 121): saem o F#m comprido e entram F7M, Dm7, C7M, Am, Bm7(b5), C#m7(b5)...
 - **Cartão "Como tocar" virou "Próximo"**, pequeno (nome + diagrama miniatura): o de agora já está no braço
   grande de "Tocando agora", que ficou mais alto. Saiu o cartão "Violão agora" (notas ao vivo).
+- **Modo Show com o braço em pé** ("no modo ao vivo o braço voltou a ser horizontal"): o mesmo braço do
+  "Tocando agora", girado 90° (`ctx.transform` + `txt` para os textos ficarem em pé): pestana do braço
+  embaixo, casas subindo, Mi grave à esquerda; o próximo acorde desce de cima até a casa certa. O "Tocando
+  agora" continua deitado, com o acorde vindo da direita. Sem as marcações cinza do braço (pareciam notas).
 - **Teclado na pista: as teclas do próximo acorde caem de cima** até o teclado na hora de tocar (pedido do
   usuário: "pra teclado as notas precisam vir de cima pra baixo, não tem jeito").
 - **Cavaco caía dentro do "violão".** O separador de 6 partes não tem cavaco: na Estonteante a parte "outros"
