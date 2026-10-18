@@ -71,7 +71,7 @@ Acordes por tempo usam Viterbi com custo de troca por posição no compasso (bar
 | `pista.js` | **Pista do braço** em canvas (30 quadros): o braço real e as bolinhas de cada acorde (com a pestana) entrando pela direita e andando para a esquerda até a casa certa na hora de tocar (`drawBoard`, `boardBase`, `shape`); teclado igual; indicadores do jogo e retorno "Perfeito!" (`drawHud`); "Voz" = melodia caindo sobre teclas (`drawVoice`). `orient 'v'` = Modo Show, `'h'` = "Tocando agora". Parada, só redesenha quando algo muda |
 | `vendor/` | OpenSheetMusicDisplay 1.9.0 e fontes (Figtree, Fraunces) |
 
-**Modo Show:** a partitura em pedaços de uma linha (`renderSingleHorizontalStaffline` com `drawFrom/UpToMeasureNumber`), colados lado a lado, desliza por baixo de uma linha fixa (tempo → posição x pelas notas de cada pedaço). A cena do palco é desenhada acima da esteira. Há fundo opcional com vídeo ou foto da própria pessoa (dura até fechar o app).
+**Modo Show:** a partitura fica **em pé, como uma página** (pedido do usuário, duas vezes): pedaços de até 8 compassos desenhados com o layout normal do OSMD (`drawFrom/UpToMeasureNumber`, várias linhas cada, cortados em fim de linha: `cutStrip`), empilhados; a linha de agora fica a 30% da altura da faixa e a página sobe deslizando; o cursor branco anda na linha (tempo → x pelas notas de cada linha). As notas saem do tamanho pela largura e diminuem se a linha mais alta (violão com tablatura) não couber. A cena do palco é desenhada acima da página. Há fundo opcional com vídeo ou foto da própria pessoa (dura até fechar o app).
 
 **Mesa de som** (botão de faders na barra de baixo; painel que sobe e cobre a parte de baixo da tela, fecha no × ou Esc):
 - Canais: equalizador (corte de grave, grave, médio com largura, agudo, corte de agudo), pan, mudo/solo (Alt + clique = solo só deste), fader de −∞ a +6 dB com escala fina perto do 0 dB, medidor estéreo de pico com marca do maior pico recente e luz de "passou de 0 dB".
@@ -329,6 +329,15 @@ Pronto e testado:
     não mudou nada além de ±1 ponto). Vocabulário maior (tétrades invertidas) pesa pouco (0-3% dos tempos).
   - A Viola mudou de tom para Lá menor (relativo de Dó: Am7 e C6 têm as mesmas notas; a música termina em Am).
   - As 4 músicas foram reprocessadas (backup em %TEMP%\ss_backup; `ss_restore.py <id>` volta).
+- **Partitura do Modo Show em pé (18/10/2026).** O usuário: "quero a partitura do modo show na vertical, já
+  havia pedido isso". Era uma esteira de uma linha correndo de lado; agora é uma página: linhas uma embaixo da
+  outra, a de agora a 30% da altura, a anterior apagada em cima e as próximas embaixo; a página sobe deslizando
+  (também termina de deslizar em pausa) e o cursor anda na linha. O quadro "Agora / Depois" virou uma faixa de
+  altura fixa em cima da página (no celular em pé, sem "Agora" e sem 1-2-3-4; deitado, só os nomes), para a
+  página não pular. Faixa que muda de tamanho: só a altura reposiciona, a largura redesenha (ResizeObserver).
+  Celular: notas um pouco menores (2 compassos por linha, a letra não encavala). Revisado por 3 revisores
+  (sincronia, peso no PC fraco, layout); os 13 pontos achados foram corrigidos. Testado no PC e no celular
+  (emulado), níveis Simples e Violão.
 
 Próximos passos (nesta ordem):
 0. O usuário testar a pista no celular de verdade e no PC fraco (i5-3470) e dizer se a velocidade e a quantidade

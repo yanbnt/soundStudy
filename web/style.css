@@ -739,16 +739,19 @@ h1, h2, h3 { margin: 0; }
 .show-strip { grid-row: 3; position: relative; overflow: hidden; margin: 0 24px; border-radius: 12px; background: rgba(0, 0, 0, .74); }
 .strip-track { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
 /* pedaços da esteira (8 compassos cada): imagens prontas que deslizam; o OSMD desenha fora da tela */
-.strip-chunk { position: absolute; left: 0; will-change: transform; }
+.strip-chunk { position: absolute; left: 0; top: 0; overflow: hidden; will-change: transform; }
 .strip-chunk svg { display: block; }
 #osmdShow { position: absolute; left: -200000px; top: 0; width: 4000px; visibility: hidden; pointer-events: none; }
 .strip-marks { position: absolute; inset: 0; pointer-events: none; }
-.strip-mark { position: absolute; top: 12%; height: 76%; border-radius: 6px; opacity: .34; }
+.strip-mark { position: absolute; border-radius: 6px; opacity: .34; }
+/* as linhas que já passaram somem aos poucos no alto da página */
+.strip-fade { position: absolute; left: 0; right: 0; top: 0; height: 24%; pointer-events: none; background: linear-gradient(rgba(0, 0, 0, .78), rgba(0, 0, 0, 0)); }
 .strip-mark.perfect { background: #fff; }
 .strip-mark.good { background: #8f8f8f; }
 .strip-mark.miss { background: repeating-linear-gradient(135deg, #fff 0 3px, transparent 3px 9px); opacity: .45; }
 .strip-mark.silence { background: rgba(255, 255, 255, .25); }
-.strip-playhead { position: absolute; top: 10px; bottom: 10px; left: 26%; width: 3px; margin-left: -1.5px; border-radius: 2px; background: #fff; box-shadow: 0 0 18px rgba(255, 255, 255, .8); }
+/* o cursor: anda na linha de agora (posição e altura pelo app.js) */
+.strip-playhead { position: absolute; top: 0; left: 0; width: 3px; margin-left: -1.5px; border-radius: 2px; background: #fff; box-shadow: 0 0 18px rgba(255, 255, 255, .8); will-change: transform; }
 .strip-loading { position: absolute; inset: 0; display: grid; place-items: center; color: rgba(255, 255, 255, .65); font-size: 15px; }
 .show-hud {
   position: absolute; right: 24px; top: 84px; z-index: 2; width: clamp(210px, 17vw, 270px);
@@ -812,7 +815,20 @@ h1, h2, h3 { margin: 0; }
 .hw-canvas, .hw-insts { display: none; }
 .show.hw { grid-template-rows: auto 0 minmax(0, 1fr) auto auto; }
 .show.hw .show-strip { margin: 0; border-radius: 0; background: transparent; }
-.show.hw .strip-track, .show.hw .strip-playhead, .show.hw .strip-loading { display: none; }
+.show.hw .strip-track, .show.hw .strip-playhead, .show.hw .strip-loading, .show.hw .strip-fade { display: none; }
+/* Partitura em pé: a página ocupa o meio da tela; o quadro "Agora / Depois" fica numa faixa em cima dela */
+.show:not(.hw) { grid-template-rows: auto auto minmax(0, 1fr) auto auto; }
+/* a faixa tem altura fixa: o desenho do acorde tem o lugar guardado (vazio no "—") e o "Perfeito!/Errou" fica
+   por cima, fora da fila; senão a página pulava a cada troca */
+.show:not(.hw) .show-hud {
+  position: relative; top: auto; right: auto; grid-row: 2; width: auto; margin: 0 24px 10px; padding: 8px 16px;
+  flex-direction: row; flex-wrap: nowrap; justify-content: center; align-items: center; gap: 6px 22px; overflow: hidden;
+}
+.show:not(.hw) .hud-chord { font-size: clamp(38px, 3.6vw, 60px); white-space: nowrap; }
+.show:not(.hw) .hud-diagram { width: clamp(72px, 5.4vw, 100px); aspect-ratio: 120 / 140; display: grid; place-items: center; }
+.show:not(.hw) .hud-diagram svg { width: 100%; height: 100%; }
+.show:not(.hw) .hud-next b { white-space: nowrap; }
+.show:not(.hw) .hud-feedback { position: absolute; right: 16px; top: 0; bottom: 0; display: flex; align-items: center; min-height: 0; pointer-events: none; }
 /* na pista os cartões já trazem o acorde e a formação: o quadro de cima some (no jogo fica só o retorno
    "Perfeito!/Errou" e a nota ouvida) */
 .show.hw .hud-label, .show.hw .hud-chord, .show.hw .hud-diagram, .show.hw .hud-next, .show.hw .hud-beats { display: none; }
@@ -852,10 +868,22 @@ h1, h2, h3 { margin: 0; }
   .show-lyric { font-size: 16px; padding-top: 2px; }
   .show-bottom { padding-top: 4px; padding-bottom: 8px; }
 }
+@media (max-height: 520px) {
+  /* tela baixa (celular deitado): na partitura, a faixa de cima só com o acorde de agora e o de depois */
+  .show:not(.hw) .hud-label, .show:not(.hw) .hud-diagram, .show:not(.hw) .hud-beats { display: none; }
+  .show:not(.hw) .show-hud { margin: 0 24px 4px; padding: 2px 12px; }
+  .show:not(.hw) .hud-chord { font-size: 30px; }
+  .show:not(.hw) .hud-next b { font-size: 22px; }
+}
 @media (max-width: 520px) {
   /* celular: a barra de cima do show cabe na largura (a tela cheia já abre sozinha) */
   .show-top { padding: 10px 12px; gap: 8px; }
   .show-song-text { display: none; }
+  .show:not(.hw) .show-strip { margin: 0 6px; }
+  /* celular em pé: numa linha só (sem "Agora" e sem os 1-2-3-4), para sobrar altura para a página */
+  .show:not(.hw) .show-hud { margin: 0 6px 6px; padding: 4px 8px; gap: 4px 14px; }
+  .show:not(.hw) .hud-label, .show:not(.hw) .hud-beats { display: none; }
+  .show:not(.hw) .hud-diagram { width: 56px; }
   #btnShowFull { display: none; }
   .show-actions { gap: 6px; }
 }

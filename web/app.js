@@ -1407,74 +1407,110 @@
     }
   }
 
-  // Esteira do Modo Show, em pedaços desenhados um de cada vez (o atual e os próximos). Antes a música
-  // inteira virava UMA linha: passava do tamanho máximo de imagem do navegador (32.767 px), a esteira
-  // ficava vazia dali em diante (tela preta; no celular a placa de vídeo nem mostrava) e levava 8-15 s
-  // para abrir. Cada pedaço vira uma imagem pronta e o fim de um encosta no começo do outro, sem pulo.
+  // Partitura do Modo Show EM PÉ, como uma página (o usuário: "quero a partitura do modo show na vertical";
+  // antes era uma esteira de uma linha só correndo de lado). As linhas ficam uma embaixo da outra; o cursor
+  // anda na linha de agora e a página sobe sozinha, deslizando, para a linha de agora ficar sempre na mesma
+  // altura (STRIP_LINE_AT da faixa), com a anterior em cima, apagada, e as próximas à vista embaixo.
+  // Desenhada em pedaços, um de cada vez (o atual e os próximos): a música inteira de uma vez levava 8-15 s
+  // para abrir e passava do tamanho máximo de imagem do navegador (tela preta). Cada pedaço vira uma imagem
+  // pronta com as linhas dele, e os pedaços se empilham sem buraco.
   // Pedaço de até STRIP_BARS compassos e STRIP_NOTES notas: partitura cheia (violão com batida em
   // semicolcheias, ~100 notas por compasso) leva ~0,2 s por compasso para desenhar; com pedaço pequeno
   // a tela não congela enquanto o próximo é preparado.
-  const STRIP_BARS = 8, STRIP_NOTES = 160;
+  const STRIP_BARS = 8, STRIP_NOTES = 160, STRIP_LINE_AT = 0.3;
 
   async function loadStrip() {
     const id = S.playerId;
     const token = (S.stripToken = (S.stripToken || 0) + 1);
-    const work = $('#osmdShow'); // onde o OSMD desenha (fora da tela); os pedaços prontos vão para a esteira
+    const work = $('#osmdShow'); // onde o OSMD desenha (fora da tela); os pedaços prontos vão para a página
     work.innerHTML = '';
     $('#stripTrack').querySelectorAll('.strip-chunk').forEach((c) => c.remove());
     $('#stripLoading').hidden = false;
     $('#stripLoading').textContent = 'Preparando a partitura…';
+    $('.strip-playhead').style.display = 'none';
     S.strip = null;
     try {
       // sem juntar compassos de pausa num só ("pausa de 8 compassos"): cada compasso precisa do seu desenho,
-      // senão um pedaço que começa no meio da pausa não monta e a esteira tentava de novo sem parar
+      // senão um pedaço que começa no meio da pausa não monta e tentava de novo sem parar
       const osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay(work, {
-        ...OSMD_OPTIONS, renderSingleHorizontalStaffline: true, autoGenerateMultipleRestMeasuresFromRestMeasures: false,
+        ...OSMD_OPTIONS, autoGenerateMultipleRestMeasuresFromRestMeasures: false,
         cursorsOptions: [{ type: 0, color: '#ffffff', alpha: 0, follow: false }],
       });
       brazilianChordLabels(osmd);
       whiteInk(osmd);
+      // a última linha de cada pedaço vai até o fim da largura (os pedaços são cortados em fim de linha:
+      // cutStrip; senão a página teria linhas curtas no meio)
+      osmd.EngravingRules.StretchLastSystemLine = true;
       await osmd.load(`/files/${id}/score_${S.level}.musicxml`);
       if (S.playerId !== id || !S.showOn || token !== S.stripToken) return;
-      const box = $('#showStrip');
       const ql = (S.an && S.an.beat_ql) || 1;
       const measures = osmd.Sheet.SourceMeasures;
       const starts = measures.map((m) => m.AbsoluteTimestamp.RealValue * 4); // início de cada compasso, em semínimas
       const last = measures[measures.length - 1];
       const end = last ? starts[starts.length - 1] + last.Duration.RealValue * 4 : 0;
       const index = new Map(measures.map((m, i) => [m, i]));
-      // onde começa cada pedaço (índice do compasso) e a que pedaço pertence cada compasso
-      const cuts = [], chunkOf = [];
-      let notes = 0;
-      measures.forEach((m, i) => {
+      const notes = measures.map((m) => { // quantas notas cada compasso tem (o peso de desenhar)
         let n = 0;
         for (const c of m.VerticalSourceStaffEntryContainers || []) {
           for (const se of c.StaffEntries || []) if (se) for (const ve of se.VoiceEntries || []) n += ve.Notes.length;
         }
-        const len = cuts.length ? i - cuts[cuts.length - 1] : 0;
-        if (!cuts.length || len >= STRIP_BARS || notes + n > STRIP_NOTES) { cuts.push(i); notes = 0; }
-        notes += n;
-        chunkOf.push(cuts.length - 1);
+        return n;
       });
-      S.strip = {
-        osmd, token, starts, end, index, cuts, chunkOf, bars: measures.length, chunks: new Map(),
-        head: box.clientWidth * 0.26, zoom: 1, want: [], failed: new Set(),
-      };
-      const k = stripChunkOf(currentBeat() * ql);
-      // o 1º pedaço mede a altura da linha e acerta o tamanho para caber na faixa
-      const first = renderChunk(k, true);
-      if (first) {
-        const z = Math.max(0.9, Math.min(2.6, (box.clientHeight * 0.92) / (first.h || 200)));
-        S.strip.zoom = z;
-        // altura da pauta na tela: igual em todos os pedaços, para a linha não pular de um para o outro
-        S.strip.staffY = Math.max(0, (box.clientHeight - first.h * z) / 2) + first.sy * z;
-        renderChunk(k);
+      // o tamanho da faixa só agora: a tela cheia pedida ao abrir o show já mudou a largura e a altura
+      const box = $('#showStrip');
+      const boxW = box.clientWidth, boxH = box.clientHeight;
+      // largura da página = a da faixa; o tamanho das notas sai da largura (no PC ~4 compassos por linha,
+      // no celular ~2; no celular um pouco menor: com 0,7 só cabia um compasso por linha e a letra encavalava)
+      const width = Math.max(260, boxW - (boxW < 500 ? 8 : 24));
+      work.style.width = `${width}px`;
+      const st = (S.strip = {
+        osmd, token, starts, end, index, notes, bars: measures.length, chunks: new Map(),
+        zoom: Math.max(0.58, Math.min(1.6, width / 760)), boxW, boxH, head: $('.strip-playhead'), view: null,
+        want: [], failed: new Set(),
+      });
+      cutStrip(st, 1);
+      // 1º pedaço de prova: quantos compassos cabem numa linha (os pedaços passam a ser cortados em fim de
+      // linha) e se a linha mais alta (violão com tablatura, teclado com duas pautas) cabe embaixo da altura
+      // de leitura; se não cabe, as notas diminuem
+      const k0 = stripChunkOf(currentBeat() * ql);
+      const probe = renderChunk(k0);
+      if (probe) {
+        const full = probe.lines.slice(0, -1).map((ln) => ln.bars).sort((a, b) => a - b); // sem a última (curta)
+        let perLine = full.length ? full[full.length >> 1] : 1;
+        const tallest = Math.max(...probe.lines.map((ln) => ln.y1 - ln.y0));
+        const room = boxH * (1 - STRIP_LINE_AT) - 12;
+        const zoom = tallest > room ? Math.max(0.45, (st.zoom * room) / tallest) : st.zoom;
+        if (zoom < st.zoom) perLine = Math.max(1, Math.floor((perLine * st.zoom) / zoom)); // notas menores: cabem mais
+        if (perLine > 1 || zoom !== st.zoom) {
+          dropChunk(k0);
+          st.zoom = zoom;
+          cutStrip(st, perLine);
+          renderChunk(stripChunkOf(currentBeat() * ql));
+        }
       }
       $('#stripLoading').hidden = true;
       updateStrip(currentBeat());
     } catch (e) {
       if (token === S.stripToken) $('#stripLoading').textContent = 'Não consegui montar a partitura: ' + e.message;
     }
+  }
+
+  // Onde começa cada pedaço (índice do compasso) e a que pedaço pertence cada compasso: até STRIP_BARS
+  // compassos e STRIP_NOTES notas, cortando em múltiplos de `perLine` compassos (fim de linha), para cada
+  // pedaço terminar numa linha cheia em vez de um compasso esticado na largura toda.
+  function cutStrip(st, perLine) {
+    const per = Math.max(1, perLine | 0);
+    const maxBars = Math.max(per, Math.floor(STRIP_BARS / per) * per);
+    const cuts = [], chunkOf = [];
+    let notes = 0;
+    st.notes.forEach((n, i) => {
+      const len = cuts.length ? i - cuts[cuts.length - 1] : 0;
+      if (!cuts.length || len >= maxBars || (len % per === 0 && notes + n > STRIP_NOTES)) { cuts.push(i); notes = 0; }
+      notes += n;
+      chunkOf.push(cuts.length - 1);
+    });
+    st.cuts = cuts;
+    st.chunkOf = chunkOf;
   }
 
   // em que pedaço cai o momento q (semínimas): procura o compasso pelo início de cada um
@@ -1491,88 +1527,90 @@
     if (ch) { ch.el.remove(); S.strip.chunks.delete(k); }
   }
 
-  // Desenha o pedaço k e guarda onde cai cada momento dele (x local). `measureOnly`: só mede.
-  function renderChunk(k, measureOnly) {
+  // Desenha o pedaço k (uma ou mais linhas da página) e guarda, de cada linha, a altura dela no pedaço e onde
+  // cai cada momento (x). Tudo em px do pedaço, com o topo da 1ª linha em 0.
+  function renderChunk(k) {
     const st = S.strip;
     if (!st || k < 0 || k >= st.cuts.length) return null;
     if (st.chunks.has(k)) return st.chunks.get(k);
     const from = st.cuts[k] + 1, to = k + 1 < st.cuts.length ? st.cuts[k + 1] : st.bars; // 1-based, inclusive
     const osmd = st.osmd;
     osmd.setOptions({ drawFromMeasureNumber: from, drawUpToMeasureNumber: to });
-    // clave, armadura e fórmula só no 1º pedaço; nos outros a pauta começa direto nas notas
+    // clave e armadura no começo de cada linha, como numa partitura; a fórmula de compasso só no começo
     const R = osmd.EngravingRules;
-    R.RenderClefsAtBeginningOfStaffline = R.RenderKeySignatures = R.RenderTimeSignatures = k === 0;
+    R.RenderClefsAtBeginningOfStaffline = R.RenderKeySignatures = true;
+    R.RenderTimeSignatures = k === 0;
     osmd.zoom = st.zoom;
     osmd.render();
     const svg = $('#osmdShow svg');
-    if (!svg) return null;
+    const page = osmd.GraphicSheet.MusicPages && osmd.GraphicSheet.MusicPages[0];
+    if (!svg || !page || !(page.MusicSystems || []).length) return null;
     const rect = svg.getBoundingClientRect();
     const unit = 10 * st.zoom;
-    const t0 = st.starts[from - 1], t1 = to < st.bars ? st.starts[to] : st.end;
-    // cada nota (de todas as pautas) vira um ponto (tempo, x); a linha verde anda de nota em nota
-    const pts = [];
-    const lead = []; // distância da barra de compasso até a 1ª nota, para emendar um pedaço no outro
-    let xs = null, xe = null, first = null; // first: x da 1ª nota do pedaço
+    const t1 = to < st.bars ? st.starts[to] : st.end;
+    // as linhas (sistemas) do pedaço: altura total (cifras em cima e letra embaixo) e só as pautas (o cursor)
+    const lines = page.MusicSystems.map((sys) => {
+      const ps = sys.PositionAndShape, y = ps.AbsolutePosition.y;
+      const staffs = sys.StaffLines || [];
+      const top = staffs.length ? staffs[0].PositionAndShape.AbsolutePosition.y : y;
+      const lastStaff = staffs[staffs.length - 1];
+      const bottom = lastStaff ? lastStaff.PositionAndShape.AbsolutePosition.y + (lastStaff.StaffHeight || 4) : top + 4;
+      return {
+        y0: Math.min(top - 1, y + (ps.BorderMarginTop || 0)) * unit, y1: Math.max(bottom + 1, y + (ps.BorderMarginBottom || 0)) * unit,
+        top: top * unit, bottom: bottom * unit, pts: [], q0: Infinity, q1: -Infinity, xs: Infinity, xe: -Infinity, bars: 0,
+      };
+    });
+    const lineOf = new Map(page.MusicSystems.map((sys, i) => [sys, i]));
+    // cada nota (de todas as pautas) vira um ponto (tempo, x) na linha dela: o cursor anda de nota em nota
     for (const list of osmd.GraphicSheet.MeasureList || []) {
+      let counted = false; // cada compasso conta uma vez na linha (uma entrada por pauta)
       for (const gm of list || []) {
         if (!gm || !gm.PositionAndShape || !gm.parentSourceMeasure) continue;
         const i = st.index.get(gm.parentSourceMeasure);
         if (i === undefined || i < from - 1 || i > to - 1) continue;
+        const sys = gm.ParentStaffLine && gm.ParentStaffLine.ParentMusicSystem;
+        const ln = lines[lineOf.has(sys) ? lineOf.get(sys) : 0];
+        if (!counted) { ln.bars++; counted = true; }
         const ps = gm.PositionAndShape;
-        const base = st.starts[i];
         const bar = ps.AbsolutePosition.x * unit;
-        const x0 = bar + (gm.beginInstructionsWidth || 0) * unit;
-        const x1 = bar + (ps.Size ? ps.Size.width : 0) * unit;
-        if (xs === null || x0 < xs) xs = x0;
-        if (xe === null || x1 > xe) xe = x1;
-        let firstX = null;
+        ln.xs = Math.min(ln.xs, bar + (gm.beginInstructionsWidth || 0) * unit);
+        ln.xe = Math.max(ln.xe, bar + (ps.Size ? ps.Size.width : 0) * unit);
+        ln.q0 = Math.min(ln.q0, st.starts[i]);
+        ln.q1 = Math.max(ln.q1, i + 1 < st.bars ? st.starts[i + 1] : st.end);
         for (const se of gm.staffEntries || []) {
           if (!se || !se.relInMeasureTimestamp || !se.PositionAndShape) continue;
-          const x = se.PositionAndShape.AbsolutePosition.x * unit;
-          pts.push([base + se.relInMeasureTimestamp.RealValue * 4, x]);
-          if (se.relInMeasureTimestamp.RealValue === 0 && (firstX === null || x < firstX)) firstX = x;
-        }
-        if (firstX !== null) {
-          lead.push(firstX - x0);
-          if (i === from - 1 && (first === null || firstX < first)) first = firstX;
+          ln.pts.push([st.starts[i] + se.relInMeasureTimestamp.RealValue * 4, se.PositionAndShape.AbsolutePosition.x * unit]);
         }
       }
     }
-    if (xs === null) { xs = 0; xe = rect.width; }
-    lead.sort((a, b) => a - b);
-    const d = lead.length ? lead[lead.length >> 1] : 0;
-    if (!pts.length) pts.push([t0, xs + d]);
-    pts.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
-    for (let i = 1; i < pts.length; i++) if (pts[i][1] < pts[i - 1][1]) pts[i][1] = pts[i - 1][1]; // sempre para a direita
-    const page = osmd.GraphicSheet.MusicPages && osmd.GraphicSheet.MusicPages[0];
-    const line = page && page.MusicSystems[0] && page.MusicSystems[0].StaffLines[0];
-    const sy = line ? line.PositionAndShape.AbsolutePosition.y * unit : 0; // topo da 1ª pauta
-    // o fim (t1) emenda na 1ª nota do pedaço seguinte (chunkX); `d` é a reserva enquanto ele não existe
-    const ch = { k, pts, xs, xe, d, first: first === null ? xs + d : first, sy, w: rect.width, h: rect.height, t0, t1 };
-    if (measureOnly) return ch;
+    const good = lines.filter((ln) => ln.q0 < Infinity).sort((a, b) => a.q0 - b.q0);
+    if (!good.length) return null;
+    const cy0 = Math.min(...good.map((ln) => ln.y0)), cy1 = Math.max(...good.map((ln) => ln.y1));
+    for (const ln of good) {
+      for (const key of ['y0', 'y1', 'top', 'bottom']) ln[key] -= cy0;
+      if (!ln.pts.length) ln.pts.push([ln.q0, ln.xs]);
+      ln.pts.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+      for (let i = 1; i < ln.pts.length; i++) if (ln.pts[i][1] < ln.pts[i - 1][1]) ln.pts[i][1] = ln.pts[i - 1][1]; // sempre para a direita
+    }
+    // respiro embaixo do pedaço igual ao que o OSMD deixa entre as linhas de um pedaço (a letra da última
+    // linha não encosta na cifra da 1ª linha do pedaço seguinte)
+    const gap = (R.MinSkyBottomDistBetweenSystems || 5) * unit;
+    const ch = { k, lines: good, h: cy1 - cy0 + gap, w: rect.width, left: Math.max(0, (st.boxW - rect.width) / 2), t1 };
     const el = document.createElement('div');
     el.className = 'strip-chunk';
-    // o número do 1º compasso fica em cima da clave escondida e apareceria cortado ("5" no lugar de "85")
-    if (k > 0) {
-      for (const t of svg.querySelectorAll('text')) {
-        if (/^\d+$/.test(t.textContent.trim()) && t.getBoundingClientRect().left - rect.left < xs) t.setAttribute('data-cut', '');
-      }
-    }
     const copy = svg.cloneNode(true);
-    copy.querySelectorAll('[data-cut]').forEach((t) => t.remove());
     // na tablatura o número da casa tem um fundo "white" que apaga a linha; com tinta branca o número
     // sumia (branco no branco): o fundo vira preto (as barras de compasso são "#ffffff" e ficam)
     copy.querySelectorAll('rect[fill="white"]').forEach((r) => r.setAttribute('fill', '#000'));
+    copy.style.marginTop = `${(-cy0).toFixed(1)}px`; // só as linhas: sem a margem de cima e de baixo da página
     el.appendChild(copy);
     const marks = document.createElement('div');
     marks.className = 'strip-marks';
     el.appendChild(marks);
     el.style.width = `${ch.w}px`;
-    el.style.height = `${ch.h}px`;
-    el.style.top = `${(st.staffY !== undefined ? st.staffY - sy : Math.max(0, ($('#showStrip').clientHeight - ch.h) / 2)).toFixed(1)}px`;
-    el.style.display = 'none'; // aparece quando a esteira o põe no lugar
-    // só o miolo do pedaço aparece: sem a clave do começo (menos no 1º) e sem a margem do fim
-    el.style.clipPath = `inset(0 ${Math.max(0, ch.w - xe).toFixed(1)}px 0 ${k === 0 ? 0 : xs.toFixed(1)}px)`;
+    el.style.height = `${ch.h.toFixed(1)}px`;
+    el.style.left = `${ch.left.toFixed(1)}px`;
+    el.style.display = 'none'; // aparece quando a página o põe no lugar
     $('#stripTrack').appendChild(el);
     Object.assign(ch, { el, marks });
     st.chunks.set(k, ch);
@@ -1600,16 +1638,23 @@
     }, 15);
   }
 
-  // x local (no pedaço) de um momento q, em semínimas; entre dois pontos, interpola. Depois da última nota
-  // vai até o fim do pedaço, que fica onde está a 1ª nota do seguinte (`next`), sem pulo na troca
-  function chunkX(ch, q, next) {
-    const p = ch.pts, n = p.length;
+  // linha do pedaço onde cai o momento q (semínimas)
+  function stripLine(ch, q) {
+    const L = ch.lines;
+    let i = 0;
+    while (i + 1 < L.length && q >= L[i + 1].q0) i++;
+    return L[i];
+  }
+
+  // x (no pedaço) de um momento q na linha; entre duas notas, interpola. Depois da última nota o cursor
+  // segue até o fim da linha, aonde chega quando a linha acaba (aí pula para o começo da próxima)
+  function lineX(ln, q) {
+    const p = ln.pts, n = p.length;
     if (q <= p[0][0]) return p[0][1];
     if (q >= p[n - 1][0]) {
-      const lx = p[n - 1][1];
-      const ex = Math.max(lx, next ? ch.xe + (next.first - next.xs) : ch.xe + ch.d);
-      if (q >= ch.t1) return ex;
-      return lx + (ex - lx) * ((q - p[n - 1][0]) / Math.max(1e-6, ch.t1 - p[n - 1][0]));
+      const lx = p[n - 1][1], ex = Math.max(lx, ln.xe);
+      if (q >= ln.q1) return ex;
+      return lx + (ex - lx) * ((q - p[n - 1][0]) / Math.max(1e-6, ln.q1 - p[n - 1][0]));
     }
     let lo = 0, hi = n - 1;
     while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (p[mid][0] <= q) lo = mid; else hi = mid; }
@@ -1625,32 +1670,70 @@
     wantChunks([k, k + 1, k + 2, k - 1, k + 3]);
     if (!cur || !cur.el.isConnected) { // o pedaço ainda está sendo preparado (ex.: pulou para longe)
       for (const ch of st.chunks.values()) ch.el.style.display = 'none';
+      st.head.style.display = 'none';
+      st.view = null;
       return;
     }
-    const left = st.head - chunkX(cur, q, st.chunks.get(k + 1));
+    const ln = stripLine(cur, q);
+    // onde o topo do pedaço de agora deve ficar para a linha de agora ficar na altura de leitura (mais para
+    // cima se a linha não couber inteira embaixo dela: violão com tablatura numa tela baixa)
+    const at = Math.max(4, Math.min(st.boxH * STRIP_LINE_AT, st.boxH - (ln.y1 - ln.y0) - 8));
+    const target = at - ln.y0;
+    const now = performance.now();
+    let y = target;
+    if (st.view) {
+      // a posição guardada é do pedaço st.view.k: passa para o de agora pelos vizinhos empilhados
+      let base = st.view.y, ok = true;
+      for (let j = st.view.k; j < k && ok; j++) { const c = st.chunks.get(j); if (c) base += c.h; else ok = false; }
+      for (let j = st.view.k; j > k && ok; j--) { const c = st.chunks.get(j - 1); if (c) base -= c.h; else ok = false; }
+      if (ok && Math.abs(target - base) < st.boxH * 1.5) { // perto: desliza; longe (pulou na música): vai direto
+        const dt = Math.min(0.1, Math.max(0, now - st.view.at) / 1000);
+        y = base + (target - base) * Math.min(1, dt * 7);
+        if (Math.abs(target - y) < 0.5) y = target;
+      }
+    }
+    st.view = { k, y, at: now };
+    // o pedaço de agora e os vizinhos empilhados, sem buraco; o que está fora da faixa não é desenhado
     const placed = new Set();
-    const place = (ch, x) => { placed.add(ch); ch.el.style.display = ''; ch.el.style.transform = `translate3d(${x.toFixed(1)}px,0,0)`; };
-    place(cur, left);
-    // vizinhos encostados: o fim de um no começo do outro
-    let x = left, prev = cur;
-    for (let j = k + 1; st.chunks.has(j); j++) { const ch = st.chunks.get(j); x += prev.xe - ch.xs; place(ch, x); prev = ch; }
-    x = left; let next = cur;
-    for (let j = k - 1; st.chunks.has(j); j--) { const ch = st.chunks.get(j); x -= ch.xe - next.xs; place(ch, x); next = ch; }
+    const place = (ch, top) => {
+      placed.add(ch);
+      const vis = top < st.boxH && top + ch.h > 0;
+      ch.el.style.display = vis ? '' : 'none';
+      if (vis) ch.el.style.transform = `translate3d(0,${top.toFixed(1)}px,0)`;
+    };
+    place(cur, y);
+    let top = y + cur.h;
+    for (let j = k + 1; st.chunks.has(j); j++) { const ch = st.chunks.get(j); place(ch, top); top += ch.h; }
+    top = y;
+    for (let j = k - 1; st.chunks.has(j); j--) { const ch = st.chunks.get(j); top -= ch.h; place(ch, top); }
     for (const ch of st.chunks.values()) if (!placed.has(ch) && ch.el.style.display !== 'none') ch.el.style.display = 'none';
+    // cursor: a barra branca na nota de agora, da altura das pautas da linha
+    const hh = Math.round(ln.bottom - ln.top + 16);
+    if (st.headH !== hh) { st.headH = hh; st.head.style.height = `${hh}px`; }
+    st.head.style.display = '';
+    st.head.style.transform = `translate3d(${(cur.left + lineX(ln, q)).toFixed(1)}px,${(y + ln.top - 8).toFixed(1)}px,0)`;
+    // a página termina de deslizar sozinha também em pausa (pausar no meio da subida deixava a linha fora
+    // do lugar); tocando, quem chama é o tick a cada quadro
+    if (y !== target && !st.raf) {
+      st.raf = requestAnimationFrame(() => { st.raf = 0; if (S.strip === st && !S.playing) updateStrip(currentBeat()); });
+    }
   }
 
-  // marca colorida na esteira onde você acertou ou errou (b0..b1 em tempos)
+  // marca na partitura onde você acertou ou errou (b0..b1 em tempos), na linha daquele momento
   function addMark(b0, b1, cls) {
     const st = S.strip;
     if (!st) return;
     const ql = (S.an && S.an.beat_ql) || 1;
-    const k = stripChunkOf(b0 * ql), ch = st.chunks.get(k), next = st.chunks.get(k + 1);
+    const ch = st.chunks.get(stripChunkOf(b0 * ql));
     if (!ch || !ch.marks) return;
-    const x0 = chunkX(ch, b0 * ql, next), x1 = chunkX(ch, Math.min(b1 * ql, ch.t1), next);
+    const ln = stripLine(ch, b0 * ql);
+    const x0 = lineX(ln, b0 * ql), x1 = lineX(ln, Math.min(b1 * ql, ln.q1));
     const el = document.createElement('div');
     el.className = 'strip-mark ' + cls;
     el.style.left = (x0 - 8) + 'px';
     el.style.width = Math.max(16, x1 - x0) + 'px';
+    el.style.top = (ln.top - 10) + 'px';
+    el.style.height = (ln.bottom - ln.top + 20) + 'px';
     ch.marks.appendChild(el);
   }
 
@@ -1729,6 +1812,8 @@
   }
 
   function clearStrip() {
+    if (S.strip && S.strip.raf) cancelAnimationFrame(S.strip.raf);
+    $('.strip-playhead').style.display = 'none';
     $('#osmdShow').innerHTML = '';
     $('#stripTrack').querySelectorAll('.strip-chunk').forEach((c) => c.remove()); // levam as marcas junto
     S.strip = null;
@@ -3850,12 +3935,23 @@
       clearTimeout(resizeTimer);
       resizeTimer = setTimeout(() => {
         rerenderSheet();
-        if (S.showOn) {
-          focusStage();
-          if (S.strip) loadStrip();
-        }
+        if (S.showOn) focusStage();
       }, 250);
     });
+    // A página da partitura do show acompanha o tamanho da faixa dela: mudou só a altura (a faixa de cima
+    // mudou, a letra quebrou linha, entrou em tela cheia numa janela já larga), só reposiciona; mudou a
+    // largura, desenha de novo (quantos compassos cabem por linha muda)
+    let stripResize = 0;
+    new ResizeObserver(() => {
+      clearTimeout(stripResize);
+      stripResize = setTimeout(() => {
+        const st = S.strip, box = $('#showStrip');
+        // sem página ainda: a montagem em andamento mede a faixa quando o arquivo termina de carregar
+        if (!S.showOn || S.showView !== 'partitura' || !box.clientWidth || !st) return;
+        if (Math.abs(box.clientWidth - st.boxW) >= 1) { loadStrip(); return; }
+        if (Math.abs(box.clientHeight - st.boxH) >= 1) { st.boxH = box.clientHeight; updateStrip(currentBeat()); }
+      }, 150);
+    }).observe($('#showStrip'));
 
     document.addEventListener('keydown', (e) => {
       const tag = (e.target.tagName || '').toLowerCase();
