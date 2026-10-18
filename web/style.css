@@ -747,7 +747,11 @@ h1, h2, h3 { margin: 0; }
 .ss-energy .meter i { display: block; height: 100%; width: 50%; border-radius: 3px; background: #fff; transition: width .4s ease; }
 
 .show-strip { grid-row: 3; position: relative; overflow: hidden; margin: 0 24px; border-radius: 12px; background: rgba(0, 0, 0, .74); }
-.strip-track { position: absolute; left: 0; top: 0; will-change: transform; }
+.strip-track { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
+/* pedaços da esteira (8 compassos cada): imagens prontas que deslizam; o OSMD desenha fora da tela */
+.strip-chunk { position: absolute; left: 0; will-change: transform; }
+.strip-chunk svg { display: block; }
+#osmdShow { position: absolute; left: -200000px; top: 0; width: 4000px; visibility: hidden; pointer-events: none; }
 .strip-marks { position: absolute; inset: 0; pointer-events: none; }
 .strip-mark { position: absolute; top: 12%; height: 76%; border-radius: 6px; opacity: .34; }
 .strip-mark.perfect { background: #fff; }

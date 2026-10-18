@@ -1111,18 +1111,45 @@
 
   // Níveis de instrumento: o cartão mostra as notas que ele está tocando agora na gravação (e apagadas as
   // próximas): no braço do violão, do cavaco ou do baixo, ou nas teclas do teclado.
+  // Violão, cavaco e teclado mudam no máximo uma vez por tempo: a batida em semicolcheias trocava o
+  // desenho 6 vezes por segundo, sem dar para ler. O cartão junta as notas daquele tempo (uma por corda).
+  // O baixo toca uma nota de cada vez e segue nota a nota.
+  function beatNotes(V, from, to) {
+    let lo = 0, hi = V.length;
+    while (lo < hi) { const mid = (lo + hi) >> 1; if (V[mid][0] < from - 4) lo = mid + 1; else hi = mid; }
+    const best = new Map(); // corda (ou tecla, no teclado) -> [nota, quanto soa dentro do tempo]
+    for (let j = lo; j < V.length && V[j][0] < to; j++) {
+      const over = Math.min(to, V[j][0] + V[j][1]) - Math.max(from, V[j][0]);
+      if (over <= 0) continue;
+      for (const x of V[j][2]) {
+        const k = S.level === 'teclado' ? x[0] : x[1];
+        if (!best.has(k) || best.get(k)[1] < over) best.set(k, [x, over]);
+      }
+    }
+    return [...best.values()].map((v) => v[0]);
+  }
+
   function updateViolao(b) {
     const V = instrumentNotes(S.level);
     if (!V || !V.length) return;
     let lo = 0, hi = V.length - 1, i = -1;
     while (lo <= hi) { const mid = (lo + hi) >> 1; if (V[mid][0] <= b + 0.02) { i = mid; lo = mid + 1; } else hi = mid - 1; }
-    const sounding = i >= 0 && b < V[i][0] + V[i][1] + 0.25 ? i : -1; // um respiro depois do fim, para dar tempo de ver
+    let now, next, key;
+    if (S.level === 'baixo') {
+      const sounding = i >= 0 && b < V[i][0] + V[i][1] + 0.25 ? i : -1; // um respiro depois do fim, para dar tempo de ver
+      now = sounding >= 0 ? V[sounding][2] : [];
+      next = V[i + 1] ? V[i + 1][2] : [];
+      key = sounding >= 0 ? sounding : null;
+    } else {
+      const bi = Math.floor(b + 0.02);
+      now = beatNotes(V, bi, bi + 1);
+      next = now.length ? beatNotes(V, bi + 1, bi + 2) : [];
+      key = now.length ? `b${bi}` : null;
+    }
     // sem nota soando o cartão mostra o acorde: redesenha também quando o acorde troca
-    const key = sounding >= 0 ? sounding : `p${i}:${S.chordIdx}`;
+    if (key === null) key = `p${i}:${S.chordIdx}`;
     if (key === S.vIdx) return;
     S.vIdx = key;
-    const now = sounding >= 0 ? V[sounding][2] : [];
-    const next = V[i + 1] ? V[i + 1][2] : [];
     setHandLegend(now.length ? 'live' : S.level);
     if (!now.length) {
       // nada soando (introdução, pausa): a forma do acorde de agora (ou do próximo) no instrumento
@@ -1143,7 +1170,7 @@
   const LEGENDS = {
     violao: '<span><i>1</i>indicador</span><span><i>2</i>médio</span><span><i>3</i>anelar</span><span><i>4</i>mínimo</span><span class="hl-sym">○ corda solta</span><span class="hl-sym">× não toca</span>',
     cavaco: '<span><i>1</i>indicador</span><span><i>2</i>médio</span><span><i>3</i>anelar</span><span><i>4</i>mínimo</span><span class="hl-sym">○ corda solta</span><span class="hl-sym">× não toca</span>',
-    baixo: '<span><i class="wide">Ré</i>nota a tocar (uma de cada vez)</span><span class="hl-sym">○ corda solta</span><span class="hl-sym">números embaixo: casa</span>',
+    baixo: '<span><i class="wide">Dó</i>nota do baixo do acorde (em C7, o Dó; em C/E, o Mi)</span><span class="hl-sym">números embaixo: casa</span>',
     teclado: '<span><b class="lg kb-on-l"></b>mão direita (acorde)</span><span><b class="lg kb-root-l"></b>raiz do acorde</span><span><b class="lg kb-bass-l"></b>mão esquerda (baixo)</span>',
     live: '<span><b class="lg live-l"></b>soando agora (nome da nota)</span><span><b class="lg next-l"></b>vem depois: já prepare</span>',
   };
@@ -1440,84 +1467,234 @@
     }
   }
 
-  // Esteira: a música inteira numa linha só; guardamos em que ponto (x) cai cada momento da partitura
-  // e, a cada quadro, deslizamos a linha para o "agora" ficar embaixo da linha verde.
+  // Esteira do Modo Show, em pedaços desenhados um de cada vez (o atual e os próximos). Antes a música
+  // inteira virava UMA linha: passava do tamanho máximo de imagem do navegador (32.767 px), a esteira
+  // ficava vazia dali em diante (tela preta; no celular a placa de vídeo nem mostrava) e levava 8-15 s
+  // para abrir. Cada pedaço vira uma imagem pronta e o fim de um encosta no começo do outro, sem pulo.
+  // Pedaço de até STRIP_BARS compassos e STRIP_NOTES notas: partitura cheia (violão com batida em
+  // semicolcheias, ~100 notas por compasso) leva ~0,2 s por compasso para desenhar; com pedaço pequeno
+  // a tela não congela enquanto o próximo é preparado.
+  const STRIP_BARS = 8, STRIP_NOTES = 160;
+
   async function loadStrip() {
     const id = S.playerId;
-    const host = $('#osmdShow');
-    host.innerHTML = '';
+    const token = (S.stripToken = (S.stripToken || 0) + 1);
+    const work = $('#osmdShow'); // onde o OSMD desenha (fora da tela); os pedaços prontos vão para a esteira
+    work.innerHTML = '';
+    $('#stripTrack').querySelectorAll('.strip-chunk').forEach((c) => c.remove());
     $('#stripMarks').innerHTML = '';
     $('#stripLoading').hidden = false;
     $('#stripLoading').textContent = 'Preparando a partitura…';
     S.strip = null;
     try {
-      const osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay(host, {
+      const osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay(work, {
         ...OSMD_OPTIONS, renderSingleHorizontalStaffline: true,
         cursorsOptions: [{ type: 0, color: '#ffffff', alpha: 0, follow: false }],
       });
       brazilianChordLabels(osmd);
       whiteInk(osmd);
       await osmd.load(`/files/${id}/score_${S.level}.musicxml`);
-      if (S.playerId !== id || !S.showOn) return;
+      if (S.playerId !== id || !S.showOn || token !== S.stripToken) return;
       const box = $('#showStrip');
-      osmd.zoom = 1; // 1º desenho mede a altura; o 2º ajusta o tamanho à faixa
-      osmd.render();
-      const h1 = host.querySelector('svg').getBoundingClientRect().height || 200;
-      osmd.zoom = Math.max(0.9, Math.min(2.6, (box.clientHeight * 0.92) / h1));
-      osmd.render();
-      const c = osmd.cursor;
-      c.show();
-      c.reset();
-      const ts = [], xs = [];
-      let guard = 0;
-      while (!c.Iterator.EndReached && guard++ < 100000) {
-        ts.push(c.Iterator.currentTimeStamp.RealValue * 4);
-        xs.push(parseFloat(c.cursorElement.style.left) || 0);
-        c.next();
+      const ql = (S.an && S.an.beat_ql) || 1;
+      const measures = osmd.Sheet.SourceMeasures;
+      const starts = measures.map((m) => m.AbsoluteTimestamp.RealValue * 4); // início de cada compasso, em semínimas
+      const last = measures[measures.length - 1];
+      const end = last ? starts[starts.length - 1] + last.Duration.RealValue * 4 : 0;
+      const index = new Map(measures.map((m, i) => [m, i]));
+      // onde começa cada pedaço (índice do compasso) e a que pedaço pertence cada compasso
+      const cuts = [], chunkOf = [];
+      let notes = 0;
+      measures.forEach((m, i) => {
+        let n = 0;
+        for (const c of m.VerticalSourceStaffEntryContainers || []) {
+          for (const se of c.StaffEntries || []) if (se) for (const ve of se.VoiceEntries || []) n += ve.Notes.length;
+        }
+        const len = cuts.length ? i - cuts[cuts.length - 1] : 0;
+        if (!cuts.length || len >= STRIP_BARS || notes + n > STRIP_NOTES) { cuts.push(i); notes = 0; }
+        notes += n;
+        chunkOf.push(cuts.length - 1);
+      });
+      S.strip = { osmd, token, starts, end, index, cuts, chunkOf, bars: measures.length, chunks: new Map(), head: box.clientWidth * 0.26, zoom: 1, want: [] };
+      const k = stripChunkOf(currentBeat() * ql);
+      // o 1º pedaço mede a altura da linha e acerta o tamanho para caber na faixa
+      const first = renderChunk(k, true);
+      if (first) {
+        const z = Math.max(0.9, Math.min(2.6, (box.clientHeight * 0.92) / (first.h || 200)));
+        S.strip.zoom = z;
+        // altura da pauta na tela: igual em todos os pedaços, para a linha não pular de um para o outro
+        S.strip.staffY = Math.max(0, (box.clientHeight - first.h * z) / 2) + first.sy * z;
+        renderChunk(k);
       }
-      c.hide();
-      const r = host.querySelector('svg').getBoundingClientRect();
-      const track = $('#stripTrack');
-      track.style.width = r.width + 'px';
-      track.style.height = r.height + 'px';
-      track.style.top = Math.max(0, (box.clientHeight - r.height) / 2) + 'px';
-      S.strip = { osmd, ts, xs, head: box.clientWidth * 0.26 };
       $('#stripLoading').hidden = true;
       updateStrip(currentBeat());
     } catch (e) {
-      $('#stripLoading').textContent = 'Não consegui montar a partitura: ' + e.message;
+      if (token === S.stripToken) $('#stripLoading').textContent = 'Não consegui montar a partitura: ' + e.message;
     }
   }
 
-  // posição x (na partitura) de um momento musical q, em semínimas; entre duas notas, interpola
-  function stripX(q) {
-    const { ts, xs } = S.strip;
-    const n = ts.length;
-    if (n < 2) return n ? xs[0] : 0;
-    const slope = (i, j) => (xs[j] - xs[i]) / Math.max(1e-6, ts[j] - ts[i]);
-    if (q <= ts[0]) return xs[0] - (ts[0] - q) * slope(0, 1);
-    if (q >= ts[n - 1]) return xs[n - 1] + (q - ts[n - 1]) * slope(n - 2, n - 1);
-    let lo = 0, hi = n - 1;
-    while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (ts[mid] <= q) lo = mid; else hi = mid; }
-    return xs[lo] + (xs[hi] - xs[lo]) * ((q - ts[lo]) / Math.max(1e-6, ts[hi] - ts[lo]));
+  // em que pedaço cai o momento q (semínimas): procura o compasso pelo início de cada um
+  const stripChunkOf = (q) => {
+    const s = S.strip.starts;
+    let lo = 0, hi = s.length - 1;
+    if (hi < 0 || q < s[0]) return 0;
+    while (hi > lo) { const mid = (lo + hi + 1) >> 1; if (s[mid] <= q) lo = mid; else hi = mid - 1; }
+    return S.strip.chunkOf[lo];
+  };
+
+  function dropChunk(k) {
+    const ch = S.strip && S.strip.chunks.get(k);
+    if (ch) { ch.el.remove(); S.strip.chunks.delete(k); }
+  }
+
+  // Desenha o pedaço k e guarda onde cai cada momento dele (x local). `measureOnly`: só mede.
+  function renderChunk(k, measureOnly) {
+    const st = S.strip;
+    if (!st || k < 0 || k >= st.cuts.length) return null;
+    if (st.chunks.has(k)) return st.chunks.get(k);
+    const from = st.cuts[k] + 1, to = k + 1 < st.cuts.length ? st.cuts[k + 1] : st.bars; // 1-based, inclusive
+    const osmd = st.osmd;
+    osmd.setOptions({ drawFromMeasureNumber: from, drawUpToMeasureNumber: to });
+    // clave, armadura e fórmula só no 1º pedaço; nos outros a pauta começa direto nas notas
+    const R = osmd.EngravingRules;
+    R.RenderClefsAtBeginningOfStaffline = R.RenderKeySignatures = R.RenderTimeSignatures = k === 0;
+    osmd.zoom = st.zoom;
+    osmd.render();
+    const svg = $('#osmdShow svg');
+    if (!svg) return null;
+    const rect = svg.getBoundingClientRect();
+    const unit = 10 * st.zoom;
+    const t0 = st.starts[from - 1], t1 = to < st.bars ? st.starts[to] : st.end;
+    // cada nota (de todas as pautas) vira um ponto (tempo, x); a linha verde anda de nota em nota
+    const pts = [];
+    const lead = []; // distância da barra de compasso até a 1ª nota, para emendar um pedaço no outro
+    let xs = null, xe = null;
+    for (const list of osmd.GraphicSheet.MeasureList || []) {
+      for (const gm of list || []) {
+        if (!gm || !gm.PositionAndShape || !gm.parentSourceMeasure) continue;
+        const i = st.index.get(gm.parentSourceMeasure);
+        if (i === undefined || i < from - 1 || i > to - 1) continue;
+        const ps = gm.PositionAndShape;
+        const base = st.starts[i];
+        const bar = ps.AbsolutePosition.x * unit;
+        const x0 = bar + (gm.beginInstructionsWidth || 0) * unit;
+        const x1 = bar + (ps.Size ? ps.Size.width : 0) * unit;
+        if (xs === null || x0 < xs) xs = x0;
+        if (xe === null || x1 > xe) xe = x1;
+        let firstX = null;
+        for (const se of gm.staffEntries || []) {
+          if (!se || !se.relInMeasureTimestamp || !se.PositionAndShape) continue;
+          const x = se.PositionAndShape.AbsolutePosition.x * unit;
+          pts.push([base + se.relInMeasureTimestamp.RealValue * 4, x]);
+          if (se.relInMeasureTimestamp.RealValue === 0 && (firstX === null || x < firstX)) firstX = x;
+        }
+        if (firstX !== null) lead.push(firstX - x0);
+      }
+    }
+    if (xs === null) { xs = 0; xe = rect.width; }
+    lead.sort((a, b) => a - b);
+    const d = lead.length ? lead[lead.length >> 1] : 0;
+    pts.push([t1, xe + d]); // o fim do pedaço emenda na 1ª nota do próximo
+    if (pts.length < 2) pts.unshift([t0, xs + d]);
+    pts.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    for (let i = 1; i < pts.length; i++) if (pts[i][1] < pts[i - 1][1]) pts[i][1] = pts[i - 1][1]; // sempre para a direita
+    const page = osmd.GraphicSheet.MusicPages && osmd.GraphicSheet.MusicPages[0];
+    const line = page && page.MusicSystems[0] && page.MusicSystems[0].StaffLines[0];
+    const sy = line ? line.PositionAndShape.AbsolutePosition.y * unit : 0; // topo da 1ª pauta
+    const ch = { k, pts, xs, xe, sy, w: rect.width, h: rect.height, t0, t1 };
+    if (measureOnly) return ch;
+    const el = document.createElement('div');
+    el.className = 'strip-chunk';
+    // o número do 1º compasso fica em cima da clave escondida e apareceria cortado ("5" no lugar de "85")
+    if (k > 0) {
+      for (const t of svg.querySelectorAll('text')) {
+        if (/^\d+$/.test(t.textContent.trim()) && t.getBoundingClientRect().left - rect.left < xs) t.setAttribute('data-cut', '');
+      }
+    }
+    const copy = svg.cloneNode(true);
+    copy.querySelectorAll('[data-cut]').forEach((t) => t.remove());
+    // na tablatura o número da casa tem um fundo "white" que apaga a linha; com tinta branca o número
+    // sumia (branco no branco): o fundo vira preto (as barras de compasso são "#ffffff" e ficam)
+    copy.querySelectorAll('rect[fill="white"]').forEach((r) => r.setAttribute('fill', '#000'));
+    el.appendChild(copy);
+    const marks = document.createElement('div');
+    marks.className = 'strip-marks';
+    el.appendChild(marks);
+    el.style.width = `${ch.w}px`;
+    el.style.height = `${ch.h}px`;
+    el.style.top = `${(st.staffY !== undefined ? st.staffY - sy : Math.max(0, ($('#showStrip').clientHeight - ch.h) / 2)).toFixed(1)}px`;
+    el.style.display = 'none'; // aparece quando a esteira o põe no lugar
+    // só o miolo do pedaço aparece: sem a clave do começo (menos no 1º) e sem a margem do fim
+    el.style.clipPath = `inset(0 ${Math.max(0, ch.w - xe).toFixed(1)}px 0 ${k === 0 ? 0 : xs.toFixed(1)}px)`;
+    $('#stripTrack').appendChild(el);
+    Object.assign(ch, { el, marks });
+    st.chunks.set(k, ch);
+    // memória: guarda só os pedaços perto do atual
+    for (const j of [...st.chunks.keys()]) if (Math.abs(j - k) > 6) dropChunk(j);
+    return ch;
+  }
+
+  // Prepara os pedaços que faltam, um por vez e entre os quadros, o mais urgente primeiro.
+  function wantChunks(list) {
+    const st = S.strip;
+    if (!st) return;
+    st.want = list.filter((k) => k >= 0 && k < st.cuts.length && !st.chunks.has(k));
+    if (!st.want.length || st.pending) return;
+    st.pending = true;
+    setTimeout(() => {
+      st.pending = false;
+      if (S.strip !== st || !st.want.length) return;
+      try { renderChunk(st.want.shift()); } catch (_) { /* tenta de novo no próximo quadro */ }
+      updateStrip(currentBeat());
+    }, 15);
+  }
+
+  // x local (no pedaço) de um momento q, em semínimas; entre dois pontos, interpola
+  function chunkX(ch, q) {
+    const p = ch.pts;
+    if (q <= p[0][0]) return p[0][1];
+    if (q >= p[p.length - 1][0]) return p[p.length - 1][1];
+    let lo = 0, hi = p.length - 1;
+    while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (p[mid][0] <= q) lo = mid; else hi = mid; }
+    return p[lo][1] + (p[hi][1] - p[lo][1]) * ((q - p[lo][0]) / Math.max(1e-6, p[hi][0] - p[lo][0]));
   }
 
   function updateStrip(b) {
-    if (!S.strip) return;
+    const st = S.strip;
+    if (!st) return;
     const q = b * ((S.an && S.an.beat_ql) || 1);
-    $('#stripTrack').style.transform = `translate3d(${(S.strip.head - stripX(q)).toFixed(1)}px,0,0)`;
+    const k = stripChunkOf(q);
+    const cur = st.chunks.get(k);
+    wantChunks([k, k + 1, k + 2, k - 1, k + 3]);
+    if (!cur || !cur.el.isConnected) { // o pedaço ainda está sendo preparado (ex.: pulou para longe)
+      for (const ch of st.chunks.values()) ch.el.style.display = 'none';
+      return;
+    }
+    const left = st.head - chunkX(cur, q);
+    const placed = new Set();
+    const place = (ch, x) => { placed.add(ch); ch.el.style.display = ''; ch.el.style.transform = `translate3d(${x.toFixed(1)}px,0,0)`; };
+    place(cur, left);
+    // vizinhos encostados: o fim de um no começo do outro
+    let x = left, prev = cur;
+    for (let j = k + 1; st.chunks.has(j); j++) { const ch = st.chunks.get(j); x += prev.xe - ch.xs; place(ch, x); prev = ch; }
+    x = left; let next = cur;
+    for (let j = k - 1; st.chunks.has(j); j--) { const ch = st.chunks.get(j); x -= ch.xe - next.xs; place(ch, x); next = ch; }
+    for (const ch of st.chunks.values()) if (!placed.has(ch) && ch.el.style.display !== 'none') ch.el.style.display = 'none';
   }
 
   // marca colorida na esteira onde você acertou ou errou (b0..b1 em tempos)
   function addMark(b0, b1, cls) {
-    if (!S.strip) return;
+    const st = S.strip;
+    if (!st) return;
     const ql = (S.an && S.an.beat_ql) || 1;
-    const x0 = stripX(b0 * ql), x1 = stripX(b1 * ql);
+    const ch = st.chunks.get(stripChunkOf(b0 * ql));
+    if (!ch || !ch.marks) return;
+    const x0 = chunkX(ch, b0 * ql), x1 = chunkX(ch, Math.min(b1 * ql, ch.t1));
     const el = document.createElement('div');
     el.className = 'strip-mark ' + cls;
     el.style.left = (x0 - 8) + 'px';
     el.style.width = Math.max(16, x1 - x0) + 'px';
-    $('#stripMarks').appendChild(el);
+    ch.marks.appendChild(el);
   }
 
   // Fundo do show: a foto do artista (a capa da música, padrão), as luzes de show na cor da música, a mesa
@@ -1715,7 +1892,9 @@
     $('#show').hidden = true;
     $('#osmdShow').innerHTML = '';
     $('#stripMarks').innerHTML = '';
+    $('#stripTrack').querySelectorAll('.strip-chunk').forEach((c) => c.remove());
     S.strip = null;
+    S.stripToken = (S.stripToken || 0) + 1; // cancela uma montagem em andamento
   }
 
   function endGame() {

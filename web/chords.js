@@ -238,7 +238,7 @@
   }
 
   // "Como tocar" no instrumento escolhido: a forma do acorde no braço dele, com o número do dedo
-  // (violão, cavaco), a caixa de notas do baixo, ou as teclas do teclado.
+  // (violão, cavaco), a nota do baixo (uma só), ou as teclas do teclado.
   // `names`: nome da nota (MIDI -> texto) na grafia do tom da música (Sol♯ em Lá maior, não Lá♭)
   function neckFor(c, inst, names = KEY_NAMES) {
     if (!c || c.root == null) return inst === 'teclado' ? '' : board(1, 'Braço do instrumento', (TUNING[inst] || TUNING.violao).length, inst) + '</svg>';
@@ -257,7 +257,12 @@
     let o = board(start, `Onde pôr os dedos no braço do ${INST_NAME[inst]}`, n, inst);
     if (v) {
       v.frets.forEach((f, s) => {
-        if (f === null) o += `<text x="${MARK_X}" y="${nkY(s, n) + 4}" text-anchor="middle" class="hn-mute">×</text>`;
+        if (inst === 'baixo') { // só a nota a tocar; corda solta ganha o nome junto da pestana
+          if (f === 0) {
+            o += `<circle cx="${MARK_X}" cy="${nkY(s, n)}" r="9" class="hn-badge"/>` +
+              `<text x="${MARK_X}" y="${nkY(s, n) + 3.6}" text-anchor="middle" class="hn-name">${names(TUNING.baixo[s])}</text>`;
+          }
+        } else if (f === null) o += `<text x="${MARK_X}" y="${nkY(s, n) + 4}" text-anchor="middle" class="hn-mute">×</text>`;
         else if (f === 0) o += `<circle cx="${MARK_X}" cy="${nkY(s, n)}" r="4.2" class="hn-open"/>`;
       });
     }
@@ -307,6 +312,11 @@
   function searchFrets(c, inst) {
     const key = inst + '#' + chordKey(c);
     if (searchCache.has(key)) return searchCache.get(key);
+    if (inst === 'baixo') { // baixo toca uma nota só: a do baixo do acorde (C7 -> Dó; C/E -> Mi)
+      const v = { frets: bassFret(c.bass != null ? c.bass : c.root), cost: 0, barre: false };
+      searchCache.set(key, v);
+      return v;
+    }
     const tuning = TUNING[inst];
     const n = tuning.length;
     const ints = chordInts(c);
@@ -317,8 +327,8 @@
     const optPcs = new Set(pcs);
     const extraBass = inst !== 'cavaco' && c.bass != null && !pcs.has(c.bass);
     if (extraBass) optPcs.add(c.bass);
-    // baixo: caixa de arpejo a partir da nota do baixo (pode começar na corda Lá); cavaco: as 4 cordas
-    const minSound = inst === 'violao' ? Math.min(4, Math.max(3, ints.length)) : inst === 'baixo' ? 3 : 4;
+    // cavaco: as 4 cordas (o baixo já saiu lá em cima, com uma nota só)
+    const minSound = inst === 'violao' ? Math.min(4, Math.max(3, ints.length)) : 4;
     let best = null;
     const evaluate = (fr) => {
       const firstSound = fr.findIndex((f) => f !== null);
@@ -374,6 +384,14 @@
     return best;
   }
 
+  // A nota no baixo onde o baixista põe a mão: na corda Mi ou na Lá, na casa mais baixa
+  // (Mi, Fá, Sol na corda Mi; Lá, Si, Dó, Ré na corda Lá).
+  function bassFret(pc) {
+    const t = TUNING.baixo;
+    const onE = (((pc - t[0]) % 12) + 12) % 12, onA = (((pc - t[1]) % 12) + 12) % 12;
+    return onE <= onA ? [onE, null, null, null] : [null, onA, null, null];
+  }
+
   // Diagrama vertical (como numa revista de cifras) para qualquer número de cordas.
   function fretSvg(v, tuning, rootPc, W, H, label, inst = 'violao') {
     const n = tuning.length;
@@ -393,8 +411,8 @@
     for (let s = 0; s < n; s++) o += `<line x1="${x(s)}" y1="${top}" x2="${x(s)}" y2="${top + frets * fy}" class="cd-string"/>`;
     if (start > 1) o += `<text x="${left - 8}" y="${top + fy * 0.5 + 4}" text-anchor="end" class="cd-label">${start}ª</text>`;
     v.frets.forEach((f, s) => {
-      if (f === null) o += `<text x="${x(s)}" y="${top - 10}" text-anchor="middle" class="cd-mark">×</text>`;
-      else if (f === 0) o += `<circle cx="${x(s)}" cy="${top - 14}" r="4" class="cd-open"/>`;
+      if (f === null && inst !== 'baixo') o += `<text x="${x(s)}" y="${top - 10}" text-anchor="middle" class="cd-mark">×</text>`;
+      else if (f === 0) o += `<circle cx="${x(s)}" cy="${top - 14}" r="${inst === 'baixo' ? 6 : 4}" class="${inst === 'baixo' ? 'cd-root' : 'cd-open'}"/>`;
     });
     if (v.barre && played.length) {
       const strings = v.frets.map((f, s) => (f === minF ? s : -1)).filter((s) => s >= 0);
@@ -405,7 +423,7 @@
     }
     v.frets.forEach((f, s) => {
       if (f === null || f === 0) return;
-      const isRoot = (tuning[s] + f) % 12 === rootPc;
+      const isRoot = inst === 'baixo' || (tuning[s] + f) % 12 === rootPc;
       o += `<circle cx="${x(s)}" cy="${y(f)}" r="${inst === 'baixo' ? 7.5 : 7}" class="${isRoot ? 'cd-root' : 'cd-dot'}"/>`;
     });
     (LETTERS[inst] || []).forEach((l, s) => { o += `<text x="${x(s)}" y="${H - 4}" text-anchor="middle" class="cd-tun">${l}</text>`; });

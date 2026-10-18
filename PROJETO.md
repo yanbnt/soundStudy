@@ -70,7 +70,7 @@ Acordes por tempo usam Viterbi com custo de troca por posição no compasso (bar
 | `game.js` | Microfone: modo **acordes** (croma por tempo) e modo **melodia** (YIN, nota por nota) |
 | `vendor/` | OpenSheetMusicDisplay 1.9.0 e fontes (Figtree, Fraunces) |
 
-**Modo Show:** a partitura numa linha só (`renderSingleHorizontalStaffline`) desliza por baixo de uma linha fixa (tempo → posição x pelas posições do cursor). A cena do palco é desenhada acima da esteira. Há fundo opcional com vídeo ou foto da própria pessoa (dura até fechar o app).
+**Modo Show:** a partitura em pedaços de uma linha (`renderSingleHorizontalStaffline` com `drawFrom/UpToMeasureNumber`), colados lado a lado, desliza por baixo de uma linha fixa (tempo → posição x pelas notas de cada pedaço). A cena do palco é desenhada acima da esteira. Há fundo opcional com vídeo ou foto da própria pessoa (dura até fechar o app).
 
 **Mesa de som** (botão de faders na barra de baixo; painel que sobe e cobre a parte de baixo da tela, fecha no × ou Esc):
 - Canais: equalizador (corte de grave, grave, médio com largura, agudo, corte de agudo), pan, mudo/solo (Alt + clique = solo só deste), fader de −∞ a +6 dB com escala fina perto do 0 dB, medidor estéreo de pico com marca do maior pico recente e luz de "passou de 0 dB".
@@ -173,7 +173,8 @@ Pronto e testado:
 
 ## Estado atual (17/10/2026, notebook)
 
-**Tudo abaixo foi feito no notebook, que não tem Git: levar a pasta para o PC de desenvolvimento e dar commit.**
+**Código no GitHub do usuário (`yanbnt/soundStudy`, privado).** No notebook o Git e o `gh` são portáteis, em
+`data/bin` (fora do Git); a credencial é o `gh` (login feito em 17/10/2026).
 
 - **Acordes como na cifra.** O modelo quase nunca ouve 6, 9, 11, 13. Agora o detalhado decide a sétima e as
   extensões pelas **notas que violão, teclado e cavaco tocam** (Basic Pitch), somadas em todos os trechos do mesmo
@@ -205,7 +206,7 @@ Pronto e testado:
 - **Desenho de cada instrumento** (`web/chords.js`): nos níveis Violão/Baixo/Cavaco/Teclado, "Acorde agora",
   "Próximo", palco e o cartão "Como tocar" mostram o instrumento escolhido. Braço com cabeça e tarraxas (6 no
   violão, 4 no cavaco, 4 grandes no baixo), nome da nota de cada corda, número da casa e dedos numerados; baixo
-  com a caixa de notas (nome na bolinha); teclado com teclas de verdade, faixas "mão esquerda/direita", Dó
+  com a nota do baixo do acorde (nome na bolinha); teclado com teclas de verdade, faixas "mão esquerda/direita", Dó
   central e nomes na grafia do tom. Formas calculadas pela afinação (`searchFrets`, com cache), também para
   acordes de violão sem forma pronta (D6(9), 7(2), E5). No celular o cartão vai para baixo de "Tocando agora".
 - **Tempo da voz × partitura e letra** (investigação com agentes e verificação independente, 3 músicas):
@@ -224,14 +225,24 @@ Pronto e testado:
   deslizante do próprio celular (bolinha de 34 px, mesma escala em dB dos faders), Mudo/Solo de 46 px e o
   "Volume geral" com o limitador. Os faders da mesa de estúdio continuam no computador (a coluna inteira do
   fader pega o arrasto). Equalizador em uma coluna no celular.
+- **Modo Show sem tela preta e abrindo rápido.** A esteira era a música inteira numa linha só: o SVG passava de
+  32.767 px (limite do OSMD/navegador), o resto ficava preto, e abrir levava 8 s (simples) a 15 s (teclado). Agora
+  vai em **pedaços** (até 8 compassos e 160 notas cada, `STRIP_BARS`/`STRIP_NOTES`), desenhados fora da tela e
+  colados um no outro; clave/armadura só no 1º; altura da pauta igual em todos. Abre em 0,2 s (simples/teclado)
+  e 0,7 s (violão). No violão cheio (batida em semicolcheias, ~100 notas por compasso) cada compasso leva ~0,25 s
+  para desenhar e a esteira dá um tranco nessa hora. Números da tablatura apareciam brancos no branco: corrigido.
+- **Baixo com uma nota só** no desenho do acorde: a do baixo (C7 → Dó na corda Lá, casa 3; C/E → Mi solto), na
+  corda Mi ou Lá, na casa mais baixa (`bassFret` no `chords.js`).
+- **Cartão "Violão/Cavaco/Teclado agora"** muda no máximo uma vez por tempo (junta as notas do tempo, uma por
+  corda); antes trocava a cada semicolcheia. O baixo segue nota a nota.
 
 Próximos passos (nesta ordem):
-0. **Levar o código do notebook para o Git** (commit e push do que foi feito em 17/10/2026).
+0. **Modo Show estilo Guitar Hero** (pedido em 17/10/2026): pista vertical, notas descendo nas faixas das cordas
+   (Mi grave à esquerda, como no diagrama), casa escrita na nota; teclado como pista de teclas.
 1. **Gabarito com 10 a 15 músicas** (o usuário manda MP3 + cifra do Cifra Club; guardar só os acordes, mais compasso e BPM). Só com isso dá para melhorar acordes e compasso sem remendo. Marcar no gabarito se a cifra é simplificada ou completa (a prova "completo" só vale para as completas). "Não Vou Entregar" (Belo) está no app sem cifra: o usuário toca e vai conferir de ouvido.
 2. Compasso: tornar `estimate_meter` estável e medir contra o gabarito; acordes que trocam no meio do tempo quando o tempo é lento.
 3. Baixo: usar o baixo transcrito para inversões que a gravação mostra (validar no gabarito).
 4. Testar no notebook com placa de vídeo (separação máxima, letra `large-v3`) e o instalador numa máquina limpa.
-5. Publicar no GitHub do usuário, em repositório **privado** (falta instalar o Git, com permissão do usuário).
 6. Testar "Corrigir letra" e o Modo Show valendo pontos com microfone real.
 7. **Segunda parte do sistema (separada deste app):** aplicação web de **teoria musical** completa e intuitiva, **mais gráfica do que escrita**, com **apresentações**, **provas** e **questões**. Pedido do usuário em 14/10/2026.
 8. **Login** (conta da pessoa), junto com a parte web.
