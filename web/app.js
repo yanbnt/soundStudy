@@ -1734,11 +1734,14 @@
     if (!voiceCache.has(m)) voiceCache.set(m, m.map((n) => [n[0], n[1], [[n[2], 0, 0]]]));
     return voiceCache.get(m);
   }
-  const hasChords = () => (S.chords || []).some((c) => c.kind !== 'N');
+  // As pistas (e o microfone do jogo) usam sempre todas as trocas de acorde: no nível Simples a lista junta
+  // as trocas rápidas e o Modo Show mostrava bem menos acordes do que a música tem
+  const pistaChords = () => (S.an && S.an.chords_detalhado) || S.chords || [];
+  const hasChords = () => pistaChords().some((c) => c.kind !== 'N');
   const INST_LABEL = { violao: 'Violão', cavaco: 'Cavaco', baixo: 'Baixo', teclado: 'Teclado', voz: 'Voz' };
   const TRACK_LABEL = {
-    violao: 'Violão · formação de cada acorde', cavaco: 'Cavaco · formação de cada acorde',
-    baixo: 'Baixo · a nota de cada acorde', teclado: 'Teclado · as teclas de cada acorde',
+    violao: 'Violão · o desenho de cada acorde no braço', cavaco: 'Cavaco · o desenho de cada acorde no braço',
+    baixo: 'Baixo · a nota de cada acorde no braço', teclado: 'Teclado · as teclas de cada acorde',
   };
   // quantos tempos aparecem pela frente (`sec` segundos de música)
   const aheadBeats = (sec) => Math.max(3, Math.min(12, (sec * ((S.an && S.an.bpm) || 90)) / 60));
@@ -1751,18 +1754,20 @@
     if (S.trackShown !== inst + narrow) { // trocou o instrumento ou a largura: título e altura
       S.trackShown = inst + narrow;
       $('#trackLabel').textContent = TRACK_LABEL[inst];
-      $('#trackCanvas').style.height = Pista.Highway.flatHeight(narrow) + 'px';
+      $('#trackCanvas').style.height = Pista.Highway.flatHeight(narrow, inst) + 'px';
     }
-    return { b: beatAt(viewTime()), ahead: aheadBeats(narrow ? 3.6 : 6.5), inst, chords: S.chords, color: S.songRgb, flash: null };
+    return { b: beatAt(viewTime()), ahead: aheadBeats(narrow ? 4.2 : 5.5), inst, chords: pistaChords(), color: S.songRgb, flash: null };
   }
 
   // Modo Show: pista em pé do instrumento escolhido nos botões em cima dela
   function hwSource() {
     if (!S.an || !S.showOn) return null;
-    const voice = S.hwInst === 'voz';
+    const voice = S.hwInst === 'voz', g = S.game;
     return {
-      b: beatAt(viewTime()), ahead: aheadBeats(voice ? 2.6 : narrowScreen() ? 3.6 : 4.2), inst: S.hwInst,
-      notes: voice ? voiceTrack() : null, chords: S.chords, color: S.songRgb, flash: S.hwFlash,
+      b: beatAt(viewTime()), ahead: aheadBeats(voice ? 2.6 : narrowScreen() ? 4.5 : 5.5), inst: S.hwInst,
+      notes: voice ? voiceTrack() : null, chords: pistaChords(), color: S.songRgb, flash: S.hwFlash,
+      // indicadores do jogo valendo pontos (o microfone confere cada tempo contra o acorde da pista)
+      game: S.gameOn ? { score: g.score, combo: g.combo, mult: g.multiplier, energy: g.energy } : null,
     };
   }
   // a formação sai dos acordes: os 4 instrumentos sempre que a música tem acordes; a voz se tem melodia
@@ -2080,7 +2085,8 @@
     el.hidden = true;
   }
 
-  const chordAtBeat = (b) => S.chords.find((c) => c.start_beat <= b && b < c.end_beat) || null;
+  // o microfone confere contra os mesmos acordes que a pista mostra
+  const chordAtBeat = (b) => pistaChords().find((c) => c.start_beat <= b && b < c.end_beat) || null;
 
   function judgeBeat(b) {
     const res = S.game.judge(chordAtBeat(b));
@@ -2100,7 +2106,8 @@
     void fb.offsetWidth; // reinicia a animação
     fb.classList.add('pop');
     addMark(b0, b1, res.result);
-    S.hwFlash = { result: res.result, at: performance.now() }; // a linha da pista pisca
+    // a linha da pista pisca; `b` = o tempo conferido, para os raios saírem das cordas daquele acorde
+    S.hwFlash = { result: res.result, at: performance.now(), b: b0 };
     if (res.combo && res.combo % 8 === 0) S.stage.burst(res.combo >= 16 ? 180 : 110);
     updateScoreHud();
   }

@@ -217,13 +217,16 @@
         this.hits++;
         if (result === 'perfect') this.perfects++;
         this.maxCombo = Math.max(this.maxCombo, this.combo);
-        this.score += (result === 'perfect' ? 100 : 50) * (1 + Math.floor(this.combo / 8));
+        this.score += (result === 'perfect' ? 100 : 50) * this.multiplier;
         this.energy = Math.min(1, this.energy + (result === 'perfect' ? 0.05 : 0.03));
       }
       return { result, combo: this.combo };
     }
 
     get accuracy() { return this.judged ? this.hits / this.judged : 0; }
+
+    // multiplicador dos pontos, como no Guitar Hero: sobe a cada 8 acertos seguidos, até x4
+    get multiplier() { return Math.min(4, 1 + Math.floor(this.combo / 8)); }
   }
 
   window.ChordGame = ChordGame;

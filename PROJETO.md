@@ -68,7 +68,7 @@ Acordes por tempo usam Viterbi com custo de troca por posição no compasso (bar
 | `stage.js` | Cena da roda de samba com músicos em silhuetas; `mono` tira a cor no fim do quadro (uma passada `saturation`) |
 | `mesa.js` | Cena **"mesa de samba"** sem pessoas, em P&B: lua sobre a baía, morros, bondinho, varal de lâmpadas, chapéu, tamborim, pandeiro, cavaquinho, chopp e partitura na mesa. Fundo padrão do Modo Show e da tela inicial |
 | `game.js` | Microfone: modo **acordes** (croma por tempo) e modo **melodia** (YIN, nota por nota) |
-| `pista.js` | **Pistas** em canvas (30 quadros) com a **formação de cada acorde** (nome + desenho, `drawShape`): `orient 'v'` = Modo Show estilo Guitar Hero (perspectiva, cartões descendo, o de agora parado na linha, cordas com a mais grave à esquerda; "Voz" = melodia caindo sobre um teclado); `orient 'h'` = "Tocando agora" (blocos do tamanho que o acorde dura). Parada, só redesenha quando algo muda |
+| `pista.js` | **Pista do braço** em canvas (30 quadros): o braço real embaixo e o desenho de cada acorde (com a pestana) chegando do fundo e pousando nele na hora de tocar (`drawBoard`, `boardBase`, `shape`); teclado igual; indicadores do jogo (`drawHud`); "Voz" = melodia caindo sobre teclas (`drawVoice`). `orient 'v'` = Modo Show, `'h'` = "Tocando agora". Parada, só redesenha quando algo muda |
 | `vendor/` | OpenSheetMusicDisplay 1.9.0 e fontes (Figtree, Fraunces) |
 
 **Modo Show:** a partitura em pedaços de uma linha (`renderSingleHorizontalStaffline` com `drawFrom/UpToMeasureNumber`), colados lado a lado, desliza por baixo de uma linha fixa (tempo → posição x pelas notas de cada pedaço). A cena do palco é desenhada acima da esteira. Há fundo opcional com vídeo ou foto da própria pessoa (dura até fechar o app).
@@ -237,17 +237,20 @@ Pronto e testado:
 - **Cartão "Violão/Cavaco/Teclado agora"** muda no máximo uma vez por tempo (junta as notas do tempo, uma por
   corda); antes trocava a cada semicolcheia. O baixo segue nota a nota.
 
-- **Pistas só com a FORMAÇÃO de cada acorde.** A 1ª versão mostrava nota por nota com o número da casa e o
-  usuário reprovou ("muita coisa exibindo, só a formação, nada de um monte de número"). Agora cada acorde
-  aparece uma vez, com o nome e o desenho de onde pôr os dedos (o mesmo do cartão "Como tocar", `shapeFor` no
-  `chords.js`), do tamanho que dura. Teclado: as teclas do acorde pintadas; baixo: a nota só.
-  - **Modo Show estilo Guitar Hero**: botões "Pista | Partitura" no alto (fica guardado, `pv.showView`; padrão
-    Pista). A pista desce em perspectiva; o cartão do acorde de agora fica parado na linha o acorde inteiro e os
-    próximos empilham em cima; cordas na ordem do diagrama (Mi grave à esquerda), acesas as que o acorde toca.
-    Botões Violão/Cavaco/Baixo/Teclado (sempre, a formação vem dos acordes) e Voz (melodia caindo sobre um
-    teclado). Na pista o quadro "Agora/Depois/1-2-3-4" some; no jogo, "Perfeito!/Errou" aparece em cima da pista.
-  - **"Tocando agora"** (no lugar dos quadros "Acorde agora / Próximo"): blocos de acorde correndo até a linha,
-    nome e formação dentro (a formação encolhe em acorde curto), o de agora na cor da música.
+- **Pista do braço (Modo Show e "Tocando agora").** O que o usuário quer, depois de reprovar várias versões
+  (nota por nota com número: "muita coisa"; cartão com diagrama: "quadrado grande"; faixas de corda no jeito do
+  Guitar Hero: "não precisa imitar, quero o desenho no braço"): **o desenho de cada acorde deitado no braço
+  real, com a pestana, chegando até a hora de tocar.** Embaixo o braço de verdade (casas com espaçamento real,
+  nome das cordas com a mais grave em cima, soltas = anel e não toca = × antes da pestana do braço, número das
+  casas embaixo); o próximo acorde (e, no show, o seguinte, mais apagado) chega do fundo como um braço pequeno
+  com o desenho e o nome, crescendo, e pousa no braço na hora; aí fica na cor da música enquanto soa. Formação
+  = a mesma do cartão "Como tocar" (`shapeFor` no `chords.js`). Teclado: o mesmo com um teclado. As pistas e o
+  microfone usam sempre a lista **detalhada** de acordes (no Simples o show mostrava bem menos acordes).
+  - **Modo Show**: botões "Pista | Partitura" (guardado, `pv.showView`; padrão Pista); Violão/Cavaco/Baixo/
+    Teclado/Voz em cima (Voz = melodia caindo sobre teclas). Com o jogo valendo pontos: indicadores do Guitar
+    Hero em cima (pontos, multiplicador até x4 com anel, acertos seguidos, medidor da plateia); acerto do
+    microfone solta raios do desenho no braço. Na pista o quadro "Agora/Depois/1-2-3-4" some.
+  - **"Tocando agora"**: o mesmo braço, mais baixo, no lugar dos quadros "Acorde agora / Próximo".
 - **Revisão independente** (workflow com 37 agentes, 30 achados confirmados, todos tratados menos 1): cartão
   que sumia antes da hora, cartão maior que a pista em tela baixa, sus2 fora do diagrama, teclas marcadas
   invisíveis, pestana passando por corda que não toca (Fmaj7; corrigido em `fingering`, vale para o cartão do

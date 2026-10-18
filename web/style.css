@@ -817,6 +817,7 @@ h1, h2, h3 { margin: 0; }
    "Perfeito!/Errou" e a nota ouvida) */
 .show.hw .hud-label, .show.hw .hud-chord, .show.hw .hud-diagram, .show.hw .hud-next, .show.hw .hud-beats { display: none; }
 .show.hw:not(.game) .show-hud { display: none; }
+.show.hw .show-score { display: none; } /* na pista os pontos vão nos indicadores ao lado dela */
 .show.hw .show-hud {
   position: absolute; top: 34%; left: 50%; right: auto; transform: translateX(-50%); z-index: 3;
   width: auto; margin: 0; padding: 0; background: transparent; pointer-events: none;
