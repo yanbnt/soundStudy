@@ -251,8 +251,8 @@
     // altura que a pista deitada precisa (CSS px): o nome do acorde, o braço (ou teclado) e as casas embaixo
     static flatHeight(narrow, inst) {
       const cfg = STRINGS[inst];
-      const board = cfg ? cfg.names.length * (narrow ? 20 : 24) : (narrow ? 56 : 72);
-      return Math.round(board + 66);
+      if (!cfg) return narrow ? 210 : 250; // teclado: teclas embaixo e o espaço por onde o próximo acorde cai
+      return Math.round(cfg.names.length * (narrow ? 24 : 30) + 66);
     }
 
     draw(now, st) {
@@ -327,9 +327,10 @@
       const labelH = Math.round(nameSize * 0.7) + 6; // nome dos acordes que vêm, em cima do braço
       const room = Math.max(30, H - top - nameSize - 8 - labelH - numH);
       // o braço ocupa o quadro (nada desce de cima: as bolinhas vêm pela direita, dentro dele)
+      // no teclado sobra espaço em cima: o próximo acorde cai de lá até as teclas
       const boardH = keys
-        ? clamp((W - 2 * padX) * 0.12, Math.min(40, room), room)
-        : Math.min(room, Math.max(40, n * (compact ? (narrow ? 20 : 24) : narrow ? 30 : 40)));
+        ? clamp((W - 2 * padX) * 0.1, Math.min(36, room * 0.45), room * 0.45)
+        : Math.min(room, Math.max(40, n * (compact ? (narrow ? 24 : 30) : narrow ? 30 : 40)));
       // à esquerda do braço: o nome das cordas e, antes da pestana do braço, os anéis (solta) e × (não toca)
       const rEst = clamp((boardH / n) * 0.4, 3, 17);
       const labelW = keys ? 0 : (compact ? (narrow ? 24 : 30) : narrow ? 30 : 40) + rEst * 1.9 + 6;
@@ -389,7 +390,39 @@
       ctx.beginPath();
       ctx.rect(nx0 - gutter, ny0 - labelH, nx1 - nx0 + gutter + padX, ny1 - ny0 + labelH + 1);
       ctx.clip();
-      if (next) {
+      if (next && keys) {
+        // teclado: as teclas do próximo acorde caem de cima até o teclado, chegando na hora (um compasso)
+        ctx.restore();
+        const fallTop = nameY + nameSize + 6, laneH = ny0 - fallTop;
+        const sh = shapeOf(next, st.inst);
+        if (sh && sh.keys && laneH > 20) {
+          ctx.fillStyle = 'rgba(0,0,0,.35)';
+          ctx.fillRect(nx0, fallTop, nx1 - nx0, laneH);
+          for (let m = geo.lo; m <= geo.hi; m++) { // faixas das teclas pretas, de leve, para guiar o olho
+            const kk = geo.keyX.get(m);
+            if (kk && kk[2]) { ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.fillRect(kk[0], fallTop, kk[1], laneH); }
+          }
+          const dy = (next.start_beat - b) * (laneH / 4);
+          if (dy <= laneH) {
+            const yb = ny0 - dy, mh = Math.max(8, Math.min(14, laneH * 0.16));
+            let lx = nx1;
+            for (const m of [...sh.keys.left, ...sh.keys.right]) {
+              const kk = geo.keyX.get(m);
+              if (!kk) continue;
+              lx = Math.min(lx, kk[0]);
+              ctx.fillStyle = col === WHITE ? (kk[2] ? '#888' : '#bbb') : kk[2] ? 'rgba(200,200,200,.95)' : 'rgba(255,255,255,.95)';
+              roundRect(ctx, kk[0] + 1.5, yb - mh, kk[1] - 3, mh, Math.min(4, kk[1] / 3));
+              ctx.fill();
+            }
+            ctx.fillStyle = 'rgba(255,255,255,.9)';
+            ctx.font = `650 ${Math.round(nameSize * 0.7)}px ${SERIF}`;
+            ctx.textAlign = 'right';
+            ctx.textBaseline = 'bottom';
+            ctx.fillText(next.display, Math.max(nx0 + 40, lx - 6), yb);
+          }
+        }
+        ctx.save();
+      } else if (next) {
         const dx = (next.start_beat - b) * pxb;
         const sh = shapeOf(next, st.inst);
         if (sh && dx <= nx1 - nx0 + 80) {

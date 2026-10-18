@@ -149,12 +149,12 @@ h1, h2, h3 { margin: 0; }
 .lib-empty b { font-family: var(--display); font-weight: 600; font-size: 17px; }
 .lib-empty span { color: var(--sub); font-size: 14px; }
 
-/* ---------- como tocar: onde vai cada dedo no braço do violão ---------- */
-.hand-card { margin: 4px 10px 10px; padding: 14px 14px 12px; border-radius: 10px; background: var(--raise); display: grid; gap: 6px; }
-.hand-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+/* ---------- próximo acorde: cartão pequeno (o de agora está no braço grande de "Tocando agora") ---------- */
+.hand-card { margin: 4px 10px 10px; padding: 10px 14px; border-radius: 10px; background: var(--raise); display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; }
+.hand-head { display: grid; gap: 4px; min-width: 0; }
 .hand-head span { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .2em; color: var(--sub); }
-.hand-head b { font-family: var(--display); font-weight: 650; font-size: 28px; letter-spacing: -.02em; color: #fff; line-height: 1; }
-.hand-svg svg { width: 100%; height: auto; display: block; }
+.hand-head b { font-family: var(--display); font-weight: 650; font-size: 26px; letter-spacing: -.02em; color: #fff; line-height: 1.05; overflow-wrap: anywhere; }
+.hand-svg svg { width: 84px; height: auto; display: block; }
 .hand-legend { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 11.5px; color: var(--sub); }
 .hand-legend i { font-style: normal; display: inline-grid; place-items: center; width: 15px; height: 15px; border-radius: 50%; background: #fff; color: #000; font-weight: 800; font-size: 9.5px; margin-right: 4px; vertical-align: -2px; }
 .hand-legend .hl-sym { color: var(--faint); }

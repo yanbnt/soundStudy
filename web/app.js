@@ -1053,7 +1053,6 @@
     }
     const ci = chordAt(t);
     if (ci !== S.chordIdx) { updateChord(ci); changed = true; }
-    if (isInstrument(S.level)) updateViolao(b);
     if (changed) {
       const c = S.chords[S.chordIdx];
       $('#nbSub').textContent = `${c && c.kind !== 'N' ? 'Acorde ' + c.display : 'Sem acorde'} • compasso ${Math.min(S.measure + 1, S.an.measures)}`;
@@ -1107,82 +1106,6 @@
 
   // Diagramas no instrumento da partitura aberta (nos níveis de melodia, o violão).
   const diagramInst = () => (isInstrument(S.level) ? S.level : 'violao');
-  const INST_NOW = { violao: 'Violão agora', baixo: 'Baixo agora', cavaco: 'Cavaco agora', teclado: 'Teclado agora' };
-
-  // Níveis de instrumento: o cartão mostra as notas que ele está tocando agora na gravação (e apagadas as
-  // próximas): no braço do violão, do cavaco ou do baixo, ou nas teclas do teclado.
-  // Violão, cavaco e teclado mudam no máximo uma vez por tempo: a batida em semicolcheias trocava o
-  // desenho 6 vezes por segundo, sem dar para ler. O cartão junta as notas daquele tempo (uma por corda).
-  // O baixo toca uma nota de cada vez e segue nota a nota.
-  const longest = new WeakMap(); // nota mais longa de cada lista (acorde segurado por 2 compassos)
-  function beatNotes(V, from, to) {
-    if (!longest.has(V)) longest.set(V, V.reduce((m, e) => Math.max(m, e[1]), 0));
-    const back = longest.get(V);
-    let lo = 0, hi = V.length;
-    while (lo < hi) { const mid = (lo + hi) >> 1; if (V[mid][0] < from - back) lo = mid + 1; else hi = mid; }
-    const best = new Map(); // corda (ou tecla, no teclado) -> [nota, quanto soa dentro do tempo]
-    for (let j = lo; j < V.length && V[j][0] < to; j++) {
-      const over = Math.min(to, V[j][0] + V[j][1]) - Math.max(from, V[j][0]);
-      if (over <= 0) continue;
-      for (const x of V[j][2]) {
-        const k = S.level === 'teclado' ? x[0] : x[1];
-        if (!best.has(k) || best.get(k)[1] < over) best.set(k, [x, over]);
-      }
-    }
-    return [...best.values()].map((v) => v[0]);
-  }
-
-  function updateViolao(b) {
-    const V = instrumentNotes(S.level);
-    if (!V || !V.length) return;
-    let lo = 0, hi = V.length - 1, i = -1;
-    while (lo <= hi) { const mid = (lo + hi) >> 1; if (V[mid][0] <= b + 0.02) { i = mid; lo = mid + 1; } else hi = mid - 1; }
-    let now, next, key;
-    if (S.level === 'baixo') {
-      const sounding = i >= 0 && b < V[i][0] + V[i][1] + 0.25 ? i : -1; // um respiro depois do fim, para dar tempo de ver
-      now = sounding >= 0 ? V[sounding][2] : [];
-      next = V[i + 1] ? V[i + 1][2] : [];
-      key = sounding >= 0 ? sounding : null;
-    } else {
-      const bi = Math.floor(b + 0.02);
-      now = beatNotes(V, bi, bi + 1);
-      next = now.length ? beatNotes(V, bi + 1, bi + 2) : [];
-      key = now.length ? `b${bi}` : null;
-    }
-    // sem nota soando o cartão mostra o acorde: redesenha também quando o acorde troca
-    if (key === null) key = `p${i}:${S.chordIdx}`;
-    if (key === S.vIdx) return;
-    S.vIdx = key;
-    setHandLegend(now.length ? 'live' : S.level);
-    if (!now.length) {
-      // nada soando (introdução, pausa): a forma do acorde de agora (ou do próximo) no instrumento
-      const c = S.chords[S.chordIdx];
-      const h = c && c.kind !== 'N' ? c : nextChord(S.chordIdx);
-      $('#handLabel').textContent = c && c.kind !== 'N' ? 'Como tocar' : 'Prepare';
-      $('#handChord').textContent = h ? h.display : '—';
-      $('#handSvg').innerHTML = ChordDiagram.neckFor(h, S.level, noteName);
-      return;
-    }
-    $('#handLabel').textContent = INST_NOW[S.level];
-    $('#handSvg').innerHTML = S.level === 'teclado'
-      ? ChordDiagram.keysPlay(now, next, noteName)
-      : ChordDiagram.play(now, next, noteName, S.level);
-  }
-
-  // Legenda do cartão "Como tocar", do jeito de cada instrumento.
-  const LEGENDS = {
-    violao: '<span><i>1</i>indicador</span><span><i>2</i>médio</span><span><i>3</i>anelar</span><span><i>4</i>mínimo</span><span class="hl-sym">○ corda solta</span><span class="hl-sym">× não toca</span>',
-    cavaco: '<span><i>1</i>indicador</span><span><i>2</i>médio</span><span><i>3</i>anelar</span><span><i>4</i>mínimo</span><span class="hl-sym">○ corda solta</span><span class="hl-sym">× não toca</span>',
-    baixo: '<span><i class="wide">Dó</i>nota do baixo do acorde (em C7, o Dó; em C/E, o Mi)</span><span class="hl-sym">números embaixo: casa</span>',
-    teclado: '<span><b class="lg kb-on-l"></b>mão direita (acorde)</span><span><b class="lg kb-root-l"></b>raiz do acorde</span><span><b class="lg kb-bass-l"></b>mão esquerda (baixo)</span>',
-    live: '<span><b class="lg live-l"></b>soando agora (nome da nota)</span><span><b class="lg next-l"></b>vem depois: já prepare</span>',
-  };
-  function setHandLegend(kind) {
-    if (S.handLegend === kind) return;
-    S.handLegend = kind;
-    const el = document.querySelector('.hand-legend');
-    if (el) el.innerHTML = LEGENDS[kind] || LEGENDS.violao;
-  }
 
   function nextChord(ci) {
     const c = S.chords;
@@ -1212,16 +1135,10 @@
     $('#hudChord').textContent = real ? c.display : '—';
     $('#hudDiagram').innerHTML = diagram;
     const n = nextChord(ci);
-    // onde pôr os dedos no braço do violão: o acorde de agora ou, enquanto não tem, o que vem
-    // (nos níveis de instrumento o cartão mostra as notas da gravação, em updateViolao)
-    const h = real ? c : n;
-    $('#handChord').textContent = h ? h.display : '—';
-    if (!isInstrument(S.level)) {
-      setHandLegend('violao');
-      $('#handLabel').textContent = real || !h ? 'Como tocar' : 'Prepare';
-      // neckFor: com extensões, 5-, baixo com barra e tipos sem forma pronta (E5, 7(2)) também
-      $('#handSvg').innerHTML = ChordDiagram.neckFor(h, 'violao', noteName);
-    }
+    // cartão pequeno com o PRÓXIMO acorde (o de agora já está no braço grande, em cima): nome e um
+    // desenho pequeno, para preparar a mão
+    $('#handChord').textContent = n ? n.display : '—';
+    $('#handSvg').innerHTML = n ? ChordDiagram.forInstrument(n, diagramInst(), { width: 84, height: 98 }) : '';
     $('#stageNext').textContent = n ? n.display : '—';
     $('#hudNext').textContent = n ? n.display : '—';
     const chip = S.chips[ci];
