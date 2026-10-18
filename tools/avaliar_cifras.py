@@ -12,63 +12,58 @@ Notas (0 a 100%), do mais fácil ao mais exigente:
     maior/menor  raiz + se é maior, menor, diminuto, aumentado ou suspenso
     com baixo  + a nota do baixo (inversões e baixo pedal: B♭/D, Fm/E♭)
     sétimas    + a sétima (7, 7M) — extensões como 9 e 11 não contam
+    completo   o acorde nota por nota, como na cifra: 6, 9, 11, 13, 5- e o baixo (a quinta justa
+               não conta, porque muita gente a omite). G7M(5-) e G7M(♯11) são o mesmo acorde.
 A sequência do app é alinhada com a do gabarito (como um "diff"), então acorde a mais ou a menos
 custa ponto, mas não bagunça o resto da comparação.
 """
 import json
-import re
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+from app import cifra  # noqa: E402
+from app.analysis import chord_intervals  # noqa: E402
+
 SONGS = ROOT / "data" / "songs"
 GABARITO = ROOT / "data" / "gabarito"
-PC = {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11}
-# tipo do soundStudy -> (família, sétima)
-KIND = {"maj": ("maj", None), "min": ("min", None), "7": ("maj", "7"), "m7": ("min", "7"),
-        "maj7": ("maj", "7M"), "m7b5": ("dim", "7"), "dim7": ("dim", "°7"), "m6": ("min", None),
-        "mmaj7": ("min", "7M"), "6": ("maj", None), "aug": ("aug", None), "dim": ("dim", None),
-        "sus2": ("sus", None), "sus4": ("sus", None)}
 
 
-def _pc(name):
-    pc = PC[name[0].upper()]
-    for ch in name[1:]:
-        pc += 1 if ch in "#♯" else -1 if ch in "b♭" else 0
-    return pc % 12
+def _fam_sev(third, fifth, seventh):
+    if third == 3 and fifth == 6:
+        fam = "dim"
+    elif third == 4 and fifth == 8:
+        fam = "aug"
+    elif third == 3:
+        fam = "min"
+    elif third in (5, 2):
+        fam = "sus"
+    else:
+        fam = "maj"
+    sev = {11: "7M", 10: "7", 9: "°7" if fam == "dim" else None}.get(seventh)
+    return fam, sev
 
 
 def parse(symbol):
-    """Cifra no jeito brasileiro -> (raiz, família, sétima, baixo). Ex.: 'Db7M(9)' -> (1, maj, 7M, None)."""
-    s = symbol.strip().replace("♭", "b").replace("♯", "#")
-    m = re.match(r"^([A-G][#b]?)(.*?)(?:/([A-G][#b]?))?$", s)
-    if not m:
+    """Cifra no jeito brasileiro -> (raiz, família, sétima, baixo, notas). Ex.: 'Db7M(9)'."""
+    ch = cifra.parse_symbol(symbol)
+    if ch is None:
         return None
-    root, q, bass = m.group(1), m.group(2), m.group(3)
-    core = re.sub(r"\(.*?\)", "", q)  # tira (9), (11), (b5)...
-    if "°" in core or "dim" in core:
-        fam, sev = "dim", ("°7" if "7" in core else None)
-    elif "(b5)" in q and core.startswith("m"):
-        fam, sev = "dim", "7"  # m7(b5) = meio diminuto
-    elif re.match(r"^m(?!aj)", core):
-        fam = "min"
-        sev = "7M" if "7M" in core or "maj7" in core else ("7" if "7" in core else None)
-    elif "aug" in core or "+" in core or "(#5)" in q:
-        fam, sev = "aug", ("7" if "7" in core else None)
-    elif "sus" in core or core.startswith("4") or core == "2":
-        fam, sev = "sus", ("7" if "7" in core else None)
-    else:
-        fam = "maj"
-        sev = "7M" if "7M" in core or "maj7" in core else ("7" if re.search(r"7(?!M)", core) else None)
-    return _pc(root), fam, sev, (_pc(bass) if bass else None)
+    fam, sev = _fam_sev(ch["third"], ch["fifth"], ch["seventh"])
+    return ch["root"], fam, sev, ch["bass"], frozenset(cifra.intervals(ch) - {7})
 
 
 def ours(c):
-    fam, sev = KIND.get(c["kind"], ("maj", None))
-    return c["root"], fam, sev, c.get("bass")
+    ints = {iv % 12 for iv in chord_intervals(c)}
+    third = 4 if 4 in ints else 3 if 3 in ints else 5 if 5 in ints else 2 if 2 in ints else None
+    fifth = 7 if 7 in ints else 6 if 6 in ints else 8 if 8 in ints else 7
+    seventh = 11 if 11 in ints else 10 if 10 in ints else 9 if (third, fifth) == (3, 6) and 9 in ints else None
+    fam, sev = _fam_sev(third, fifth, seventh)
+    return c["root"], fam, sev, c.get("bass"), frozenset(ints - {7})
 
 
-LEVELS = ("raiz", "maior/menor", "com baixo", "sétimas")
+LEVELS = ("raiz", "maior/menor", "com baixo", "sétimas", "completo")
 
 
 def same(a, b, level):
@@ -76,6 +71,8 @@ def same(a, b, level):
         return False
     if level == "raiz":
         return True
+    if level == "completo":
+        return a[3] == b[3] and a[4] == b[4]
     if a[1] != b[1]:
         return False
     if level == "maior/menor":
@@ -118,8 +115,14 @@ def align(ref, hyp, trecho=False):
     return pairs[::-1]
 
 
-def evaluate(song_id, gab, level_key="chords_detalhado", show=False):
-    an = json.loads((SONGS / song_id / "analysis.json").read_text(encoding="utf-8"))
+def evaluate(song_id, gab, level_key="chords_detalhado", show=False, an=None):
+    """`an`: análise já carregada (para testar uma mudança sem gravar na música)."""
+    if an is None:
+        an = json.loads((SONGS / song_id / "analysis.json").read_text(encoding="utf-8"))
+    if an.get("chords_source") == "cifra" and level_key in ("chords_detalhado", "chords"):
+        level_key += "_auto"  # a prova mede o que o app ouviu, não a cifra colada pela pessoa
+        if level_key == "chords_auto" and "chords_auto" not in an:
+            level_key = "chords"
     ref_sym = gab["acordes"]
     ref = [parse(s) for s in ref_sym]
     if None in ref:
@@ -134,7 +137,7 @@ def evaluate(song_id, gab, level_key="chords_detalhado", show=False):
         line = []
         for i, j in pairs:
             got = segs[j]["display"] if j is not None else "—"
-            mark = "" if j is not None and same(ref[i], hyp[j], "com baixo") else " ✗"
+            mark = "" if j is not None and same(ref[i], hyp[j], "completo") else " ✗"
             line.append(f"{ref_sym[i]}→{got}{mark}")
         print("   " + "  ".join(line))
     return score, an["key"]["display"]

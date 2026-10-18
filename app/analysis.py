@@ -35,6 +35,25 @@ CHORD_TYPES = {
     "m9": ((0, 3, 7, 10, 14), -0.05, "minor-ninth", "m7(9)", "menor com sétima e nona"),
     "11": ((0, 7, 10, 14, 17), -0.06, "dominant-11th", "7(11)", "com sétima, nona e décima primeira"),
     "13": ((0, 4, 7, 10, 14, 21), -0.06, "dominant-13th", "7(13)", "com sétima e décima terceira"),
+    # os tipos abaixo só vêm de cifra colada (o reconhecimento não os escolhe)
+    "7sus2": ((0, 2, 7, 10), -0.06, "suspended-second", "7(2)", "com sétima e segunda no lugar da terça"),
+    "maj7sus4": ((0, 5, 7, 11), -0.06, "suspended-fourth", "7M(4)", "com sétima maior e quarta no lugar da terça"),
+    "aug7": ((0, 4, 8, 10), -0.07, "augmented-seventh", "7(#5)", "aumentado com sétima"),
+    "power": ((0, 7), -0.07, "power", "5", "só com a quinta, sem terça"),
+}
+# Como cada tipo vai para a partitura (MusicXML): tipo + graus fixos (valor, alteração, add/alter/subtract).
+# 7(4) = dominante sem a terça e com a quarta (o mesmo jeito do leitor de partitura da tela).
+XML_FORM = {
+    "maj": ("major", ()), "min": ("minor", ()), "7": ("dominant", ()), "m7": ("minor-seventh", ()),
+    "maj7": ("major-seventh", ()), "m7b5": ("half-diminished", ()), "dim7": ("diminished-seventh", ()),
+    "m6": ("minor-sixth", ()), "mmaj7": ("major-minor", ()), "6": ("major-sixth", ()), "aug": ("augmented", ()),
+    "dim": ("diminished", ()), "sus2": ("suspended-second", ()), "sus4": ("suspended-fourth", ()),
+    "7sus4": ("dominant", ((4, 0, "add"), (3, 0, "subtract"))),
+    "7sus2": ("dominant", ((2, 0, "add"), (3, 0, "subtract"))),
+    "maj7sus4": ("major-seventh", ((4, 0, "add"), (3, 0, "subtract"))),
+    "aug7": ("augmented-seventh", ()), "power": ("power", ()),
+    "9": ("dominant-ninth", ()), "maj9": ("major-ninth", ()), "m9": ("minor-ninth", ()),
+    "11": ("dominant-11th", ()), "13": ("dominant-13th", ()),
 }
 # no nível "simples", as extensões viram o acorde de sétima por baixo delas
 SIMPLE_KIND = {"9": "7", "maj9": "maj7", "m9": "m7", "11": "7sus4", "13": "7"}
@@ -65,6 +84,129 @@ def pretty(name):
 def pt_name(pc, flats):
     n = pc_name(pc, flats)
     return PT_LETTER[n[0]] + {"b": "♭", "#": "♯"}.get(n[1:], "")
+
+
+LETTERS = "CDEFGAB"
+NATURAL = {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11}
+_DEG_STEP = (0, 1, 1, 2, 2, 3, 3, 4, 5, 5, 6, 6)  # semitons acima da tônica -> graus (letras) acima
+
+
+def spell(pc, key):
+    """Nome da nota pela função dela no tom, como o músico escreve: em Ré maior o VI grau abaixado
+    é B♭ (não A♯) e o IV aumentado é G♯. Nomes raros (C♭, F♭, E♯, B♯) voltam ao nome comum."""
+    if key is None:
+        return pc_name(pc, False)
+    iv = (pc - key["tonic"]) % 12
+    letter = LETTERS[(LETTERS.index(key["name"][0]) + _DEG_STEP[iv]) % 7]
+    diff = (pc - NATURAL[letter]) % 12
+    diff = diff - 12 if diff > 6 else diff
+    if diff not in (-1, 0, 1):
+        return pc_name(pc, key["flats"])
+    name = letter + {0: "", 1: "#", -1: "b"}[diff]
+    return pc_name(pc, key["flats"]) if name in ("Cb", "Fb", "E#", "B#") else name
+
+
+def pt_spelled(name):
+    """'Bb' -> 'Si♭'."""
+    return PT_LETTER[name[0]] + {"b": "♭", "#": "♯"}.get(name[1:], "")
+
+
+# ---------------------------------------------------------------- extensões e nome do acorde
+
+# extensão (semitons acima da raiz, mod 12) -> como se escreve e como se fala
+EXT_NAME = {1: "b9", 2: "9", 3: "#9", 5: "11", 6: "#11", 8: "b13", 9: "13"}
+EXT_ORDER = (1, 2, 3, 5, 6, 8, 9)
+EXT_SPOKEN = {1: "nona menor", 2: "nona", 3: "nona aumentada", 5: "décima primeira",
+              6: "décima primeira aumentada", 8: "décima terceira menor", 9: "décima terceira"}
+# MusicXML: extensão -> (grau, alteração)
+EXT_DEGREE = {1: (9, -1), 2: (9, 0), 3: (9, 1), 5: (11, 0), 6: (11, 1), 8: (13, -1), 9: (13, 0)}
+# tipos do modelo que já trazem extensão: tipo de base + extensões
+SPLIT_KIND = {"9": ("7", (2,)), "maj9": ("maj7", (2,)), "m9": ("m7", (2,)), "13": ("7", (2, 9)),
+              "11": ("7sus4", (2,))}
+
+
+def normalize_chord(kind, ext):
+    """(tipo, extensões) no jeito das cifras: tríade com 13 vira acorde de sexta (D6, Gm6)."""
+    if kind in SPLIT_KIND:
+        base, more = SPLIT_KIND[kind]
+        kind, ext = base, set(ext) | set(more)
+    ext = set(ext)
+    if kind in ("maj", "min") and 9 in ext:
+        kind = "6" if kind == "maj" else "m6"
+    if kind in ("6", "m6", "dim7"):
+        ext.discard(9)  # a sexta já está no tipo
+    if kind in ("sus4", "7sus4"):
+        ext.discard(5)
+    return kind, sorted(ext, key=EXT_ORDER.index)
+
+
+def chord_suffix(kind, ext):
+    """Sufixo da cifra: ('6', [2]) -> '6(9)'; ('maj7', [6]) -> '7M(#11)'; ('maj', [2]) -> '9' (D9 =
+    ré com nona e sem sétima, como nas cifras brasileiras)."""
+    base = CHORD_TYPES[kind][3]
+    names = [EXT_NAME[i] for i in ext if i in EXT_NAME]
+    if not names:
+        return base
+    if kind == "maj" and names == ["9"]:
+        return "9"
+    if base.endswith(")"):
+        return base[:-1] + "/" + "/".join(names) + ")"
+    return base + "(" + "/".join(names) + ")"
+
+
+def pretty_suffix(s):
+    for a, b in (("b5", "♭5"), ("#5", "♯5"), ("b9", "♭9"), ("#9", "♯9"), ("#11", "♯11"), ("b13", "♭13")):
+        s = s.replace(a, b)
+    return s
+
+
+def chord_intervals(seg):
+    """Notas do trecho (semitons sobre a raiz): tipo, quinta alterada (5- / 5+) e extensões."""
+    ints = list(CHORD_TYPES[seg["kind"]][0])
+    alt5 = seg.get("alt5")
+    if alt5:
+        ints = [iv + alt5 if iv == 7 else iv for iv in ints]
+    return ints + [12 + iv for iv in seg.get("ext") or ()]
+
+
+def xml_harmony(seg):
+    """(tipo MusicXML, [(grau, alteração, add/alter/subtract), ...]) do trecho: forma fixa do tipo,
+    quinta alterada e extensões. É o mesmo para a partitura de leitura e a dos instrumentos, e a tela
+    usa estes graus para dar a cada acorde o nome escrito na análise."""
+    kind, fixed = XML_FORM.get(seg["kind"], ("major", ()))
+    degrees = [list(d) for d in fixed]
+    if seg.get("alt5"):
+        degrees.append([5, seg["alt5"], "alter"])
+    for iv in seg.get("ext") or ():
+        value, alter = EXT_DEGREE[iv]
+        degrees.append([value, alter, "add"])
+    return kind, degrees
+
+
+def name_chord(seg, root, kind, bass, ext, key, alt5=None):
+    """Preenche raiz, tipo, baixo, extensões e os nomes (cifra, tela, falado) de um trecho de acorde.
+    `alt5`: quinta diminuta (-1) ou aumentada (+1) escrita na cifra (G7M(5-))."""
+    kind, ext = normalize_chord(kind, ext)
+    rname = spell(root, key)
+    suffix = chord_suffix(kind, ext)
+    label = rname + suffix
+    display = pretty(rname) + pretty_suffix(suffix)
+    spoken = pt_spelled(rname) + " " + CHORD_TYPES[kind][4]
+    if alt5:
+        spoken += ", com quinta " + ("diminuta" if alt5 < 0 else "aumentada")
+    if ext:
+        spoken += ", com " + " e ".join(EXT_SPOKEN[i] for i in ext)
+    bname = None
+    if bass is not None:
+        bname = spell(bass, key)
+        label += "/" + bname
+        display += "/" + pretty(bname)
+        spoken += ", baixo em " + pt_spelled(bname)
+    seg.update(kind=kind, root=root, bass=bass, ext=list(ext), alt5=alt5 or None, root_name=rname, bass_name=bname,
+               suffix=pretty_suffix(suffix), label=label, display=display, spoken=spoken)
+    xkind, degrees = xml_harmony(seg)
+    seg["xml"] = {"kind": xkind, "degrees": degrees}
+    return seg
 
 
 # ---------------------------------------------------------------- utilidades
@@ -622,25 +764,296 @@ def chord_segments(per_beat, bass_chroma, grid, offset, key, bass_notes=None):
                     bass = None
                     if bpc != root and (bpc - root) % 12 in ints[1:] and conf > 0.28:
                         bass = bpc
-                _, _, _, suffix, spoken = CHORD_TYPES[kind]
-                label = pc_name(root, flats) + suffix
-                display = pretty(pc_name(root, flats)) + suffix.replace("b5", "♭5").replace("#5", "♯5")
-                text = pt_name(root, flats) + " " + spoken
-                if bass is not None:
-                    label += "/" + pc_name(bass, flats)
-                    display += "/" + pretty(pc_name(bass, flats))
-                    text += ", baixo em " + pt_name(bass, flats)
-                seg.update(kind=kind, root=root, bass=bass, label=label, display=display,
-                           spoken=text)
+                name_chord(seg, root, kind, bass, (), key)
             segs.append(seg)
             start = i
     return segs
 
 
+# ---------------------------------------------------------------- acordes da cifra colada
+
+def kind_from_cifra(ch):
+    """Acorde lido da cifra (app/cifra.py) -> (tipo do soundStudy, extensões, quinta alterada).
+    Nada que a cifra escreve se perde: 7(♯5), 7M(♯5), 7(2), 7M(4), E5 e o 5- têm forma própria."""
+    t, f, s = ch["third"], ch["fifth"], ch["seventh"]
+    ext = set(ch["ext"])
+    alt5 = None
+    if t == 3 and f == 6:
+        kind = {10: "m7b5", 9: "dim7"}.get(s, "dim")
+    elif t == 4 and f == 8:
+        if s == 10:
+            kind = "aug7"
+        elif s == 11:
+            kind, alt5 = "maj7", 1
+        else:
+            kind = "aug"
+    elif t == 3:
+        kind = {10: "m7", 11: "mmaj7"}.get(s, "min")
+        if f != 7:
+            alt5 = f - 7
+    elif t == 5:
+        kind = {10: "7sus4", 11: "maj7sus4"}.get(s, "sus4")
+    elif t == 2:
+        kind = "7sus2" if s == 10 else "sus2"
+    elif t is None:
+        kind = "power"
+    else:
+        kind = {10: "7", 11: "maj7"}.get(s, "maj")
+        if f != 7:
+            alt5 = f - 7  # G7M(5-): quinta diminuta no lugar da justa
+    return kind, ext, alt5
+
+
+def name_from_cifra(seg, symbol, key):
+    """Trecho com o acorde escrito na cifra: tipo e extensões para diagrama e partitura, e o nome
+    exatamente como a cifra escreve (G7M(5-) continua G7M(5-))."""
+    from . import cifra
+    ch = cifra.parse_symbol(symbol)
+    kind, ext, alt5 = kind_from_cifra(ch)
+    name_chord(seg, ch["root"], kind, ch["bass"], ext, key, alt5=alt5)
+    s = cifra._norm(symbol)
+    head = s[:s.rfind("/")] if ch["bass"] is not None else s
+    rname = head[:2] if len(head) > 1 and head[1] in "#b" else head[:1]
+    suffix = head[len(rname):]
+    bname = s[s.rfind("/") + 1:] if ch["bass"] is not None else None
+    seg.update(root_name=rname, bass_name=bname, suffix=pretty_suffix(suffix),
+               label=s, display=pretty(rname) + pretty_suffix(suffix) + ("/" + pretty(bname) if bname else ""))
+    return seg
+
+
+def beat_profiles(played, grid):
+    """Força de cada nota (classe de altura) tocada em cada tempo: (tempos x 12), soma 1 por tempo."""
+    g = np.asarray(grid)
+    n = len(g) - 1
+    P = np.zeros((n, 12))
+    for s, e, m, amp in played:
+        i = max(0, int(np.searchsorted(g, s, side="right")) - 1)
+        while i < n and g[i] < e:
+            ov = min(e, g[i + 1]) - max(s, g[i])
+            if ov > 0:
+                P[i, int(m) % 12] += ov * amp
+            i += 1
+    return P / (P.sum(axis=1, keepdims=True) + 1e-9)
+
+
+def _note_match(P, pcs):
+    """Correlação entre as notas tocadas em cada tempo e as notas do acorde (-1 a 1): nota do acorde
+    que não soa e nota que soa fora do acorde contam contra. Tempo sem nota: 0."""
+    t = np.zeros(12)
+    t[list(pcs)] = 1.0
+    t = t - t.mean()
+    Pc = P - P.mean(axis=1, keepdims=True)
+    num = Pc @ t
+    den = np.linalg.norm(Pc, axis=1) * np.linalg.norm(t) + 1e-9
+    return np.where(P.sum(axis=1) > 0, num / den, 0.0)
+
+
+def align_cifra(probs, grid, symbols, played=None, changes=None, change_cost=(0.3, 0.9, 0.5, 0.7),
+                skip=6.0, jump=25.0, off_change=2.0, ext_weight=0.3, note_weight=3.0):
+    """Encaixa os acordes da cifra no tempo da gravação.
+
+    Cada acorde da cifra (qualquer um: D6(9), G7M(5-), A7(4/9)...) é pontuado em cada tempo pelas
+    partes que o modelo ouve (tríade e baixo com peso cheio; 7ª, 9ª, 11ª e 13ª com peso menor, porque
+    o modelo quase não as ouve) e pelas notas que violão, teclado e cavaco tocam naquele tempo
+    (separa D6(9) de D7(13): o Mi soa, o Dó não). Um Viterbi escolhe a sequência: só os acordes da
+    cifra entram, na ordem dela; trocar custa menos no 1 e no 3 do compasso.
+    `changes`: tempos em que o reconhecimento ouviu troca de acorde. Trocar fora deles custa
+    `off_change` a mais: quando a gravação toca outro acorde no lugar do da cifra, o acorde da cifra
+    ocupa o tempo que aquele acorde ocupa no áudio (e não um tempo só, espremido).
+    Devolve o índice (em `distinct`) de cada tempo, ou -1 para "sem acorde", e a lista `distinct`."""
+    from . import cifra
+    from . import lvcr
+    distinct, seen = [], {}
+    for s in symbols:
+        k = cifra._norm(s)
+        if k not in seen:
+            seen[k] = len(distinct)
+            distinct.append(s)
+    tri, bass, p7, p9, p11, p13 = [np.log(np.maximum(p, 1e-6)) for p in probs]
+    cols, parsed = [], []
+    for s in distinct:
+        ch = cifra.parse_symbol(s)
+        parsed.append(ch)
+        t, b, s7, s9, s11, s13 = cifra.lvcr_parts(ch)
+        cols.append(tri[:, t] + bass[:, b] + ext_weight * (p7[:, s7] + p9[:, s9] + p11[:, s11] + p13[:, s13]))
+    cols.append(tri[:, 0] + bass[:, 0])  # sem acorde
+    L = np.stack(cols, axis=1)
+    g = np.asarray(grid)
+    n, K = len(g) - 1, L.shape[1]
+    S = np.full((n, K), -20.0)
+    S[:, -1] = 0.0
+    for i in range(n):
+        span = g[i + 1] - g[i]
+        fa = int(max(0, np.floor((g[i] + 0.1 * span) / lvcr.FRAME_SEC)))
+        fb = int(max(fa + 1, np.ceil((g[i + 1] - 0.1 * span) / lvcr.FRAME_SEC)))
+        if g[i + 1] > 0 and fa < len(L):
+            S[i] = L[fa:min(fb, len(L))].mean(axis=0)
+    if played:
+        P = beat_profiles(played, g)
+        for k, ch in enumerate(parsed):
+            S[:, k] += note_weight * _note_match(P, cifra.pitch_classes(ch))
+    # Anda pela cifra posição por posição (a cifra escrita do começo ao fim, com as repetições
+    # abertas): ficar no acorde é de graça; ir para o próximo custa só a troca; pular um acorde da
+    # cifra custa `skip`; voltar ou saltar para outra parte (a gravação repete o refrão mais vezes,
+    # ou corta uma parte) custa `jump`. Assim o A7(4/9) da cifra fica no lugar dele mesmo quando o
+    # áudio puxa para outro acorde.
+    seq = [seen[cifra._norm(s)] for s in cifra.compact(symbols)]
+    M = len(seq)
+    START, END = M, M + 1  # "sem acorde" antes da música começar e depois que ela acaba
+    SP = S[:, seq]
+    SN = S[:, -1]
+    NEG = -1e9
+    dp = np.full(M + 2, NEG)
+    dp[:M] = SP[0] - jump
+    dp[0] = SP[0, 0]
+    dp[START] = SN[0]
+    back = np.zeros((n, M + 2), dtype=np.int32)
+    ar = np.arange(M)
+    changes = set(changes) if changes is not None else None
+    for b in range(1, n):
+        pen = change_cost[b % 4] + (0.0 if changes is None or b in changes else off_change)
+        pos = dp[:M]
+        best_any = int(pos.argmax())
+        from_start = np.full(M, dp[START] - pen - jump)
+        from_start[0] = dp[START] - pen
+        cands = [
+            (pos, ar),                                                        # fica no acorde
+            (np.r_[NEG, pos[:-1] - pen], ar - 1),                             # próximo da cifra
+            (np.r_[NEG, NEG, pos[:-2] - pen - skip][:M], ar - 2),             # pula um acorde
+            (np.full(M, pos[best_any] - pen - jump), np.full(M, best_any)),   # salta de parte
+            (from_start, np.full(M, START)),                                  # a música começa
+        ]
+        vals = np.stack([c[0] for c in cands])
+        choice = vals.argmax(axis=0)
+        new = np.full(M + 2, NEG)
+        new[:M] = vals.max(axis=0) + SP[b]
+        back[b, :M] = np.choose(choice, [c[1] for c in cands])
+        new[START] = dp[START] + SN[b]
+        back[b, START] = START
+        end_opts = [(dp[END], END), (dp[M - 1] - pen, M - 1), (pos[best_any] - pen - jump, best_any)]
+        v, src = max(end_opts)
+        new[END] = v + SN[b]
+        back[b, END] = src
+        dp = new
+    path = np.zeros(n, dtype=int)
+    path[-1] = int(dp.argmax())
+    for b in range(n - 1, 0, -1):
+        path[b - 1] = back[b, path[b]]
+    return [seq[p] if p < M else -1 for p in path], distinct
+
+
+def cifra_segments(path, distinct, grid, key):
+    """Trechos de acorde (como chord_segments) a partir do encaixe da cifra."""
+    segs, start = [], 0
+    for i in range(1, len(path) + 1):
+        if i == len(path) or path[i] != path[start]:
+            seg = {"start_beat": start, "end_beat": i, "start": float(grid[start]),
+                   "end": float(grid[min(i, len(grid) - 1)])}
+            if path[start] < 0:
+                seg.update(kind="N", root=None, bass=None, ext=[], label="N.C.", display="—", spoken="sem acorde")
+            else:
+                name_from_cifra(seg, distinct[path[start]], key)
+            segs.append(seg)
+            start = i
+    return segs
+
+
+# ---------------------------------------------------------------- extensões pelas notas tocadas
+
+# Quanto uma extensão precisa soar, em relação à média das notas da tríade, para entrar no nome.
+# Depende do tipo: 6 e 9 num acorde maior são comuns (D6(9)); 13 num 7M é raro e pede muita evidência.
+EXT_MIN = {
+    "maj": {2: 0.40, 9: 0.40, 6: 0.50},
+    "6": {2: 0.40, 6: 0.50},
+    "maj7": {2: 0.50, 6: 0.40, 9: 0.80},
+    "7": {2: 0.40, 9: 0.40, 1: 0.50, 3: 0.60, 8: 0.50, 6: 0.60},
+    "min": {2: 0.50, 5: 0.40, 9: 0.40},
+    "m6": {2: 0.50},
+    "m7": {2: 0.50, 5: 0.40},
+    "sus4": {2: 0.40},
+    "7sus4": {2: 0.40, 9: 0.50},
+}
+
+
+def played_profile(played, a, b, root):
+    """Força de cada nota (intervalo sobre a raiz) tocada entre a e b segundos."""
+    w = np.zeros(12)
+    for s, e, m, amp in played:
+        ov = min(e, b) - max(s, a)
+        if ov > 0:
+            w[(int(m) - root) % 12] += ov * amp
+    return w
+
+
+EXT_FAMILIES = ((1, 2, 3), (8, 9))  # uma nona só (♭9, 9 ou ♯9) e uma décima terceira só (♭13 ou 13)
+
+
+def refine_with_notes(segs, played, key, scale=1.0, add_seventh=True, reroot=True):
+    """Sétima e extensões (6, 9, 11, 13) pelo que violão, teclado e cavaco tocam de fato.
+
+    O modelo de acordes acerta raiz, tríade e baixo, mas quase nunca ouve as extensões. As notas
+    transcritas (Basic Pitch) mostram, por exemplo, a 9ª e a 6ª soando em cima do Ré (D6(9)).
+    A evidência é somada em todos os trechos do mesmo acorde na música (como numa cifra, o mesmo
+    acorde tem o mesmo nome do começo ao fim), o que tira o ruído de um trecho só."""
+    if not played:
+        return segs
+    groups = {}
+    for seg in segs:
+        if seg["kind"] == "N":
+            continue
+        groups.setdefault((seg["root"], seg["kind"], seg["bass"], tuple(seg.get("ext") or ())), []).append(seg)
+    for (root, kind, bass, ext0), group in groups.items():
+        w = sum(played_profile(played, s["start"], s["end"], root) for s in group)
+        tri = [iv % 12 for iv in CHORD_TYPES[kind][0][:3]]
+        ref = w[tri].mean()
+        if ref <= 0:
+            continue
+        r = w / ref
+        ext = set(ext0)
+        # Baixo fora do acorde (A/G) e as notas de cima formam um acorde em cima do baixo: o acorde é
+        # o do baixo, e o resto vira extensão (A/G com Si e Ré soando = Sol com 9ª e 11ª aumentada).
+        if reroot and bass is not None and (bass - root) % 12 not in [iv % 12 for iv in CHORD_TYPES[kind][0]]:
+            rb = np.roll(r, -((bass - root) % 12))  # mesmo perfil, agora sobre o baixo
+            third = 4 if rb[4] >= rb[3] else 3
+            if rb[third] >= 0.5 and rb[7] >= 0.5:
+                root, kind, bass, ext = bass, ("maj" if third == 4 else "min"), None, set()
+                w = np.roll(w, -((root - group[0]["root"]) % 12))
+                ref = w[[0, third, 7]].mean()
+                r = w / ref
+        # sétima que a tríade não tinha (ou diminuto em vez de meio diminuto)
+        if not add_seventh:
+            pass
+        elif kind == "maj" and r[11] >= 0.45 * scale and r[11] > r[10]:
+            kind = "maj7"
+        elif kind == "maj" and r[10] >= 0.60 * scale and r[10] > r[11]:
+            kind = "7"
+        elif kind == "min" and r[10] >= 0.50 * scale and r[10] > r[11] and r[10] > r[9]:
+            kind = "m7"
+        elif kind == "m7b5" and r[9] >= 0.80 * scale and r[9] > 1.5 * r[10]:
+            kind = "dim7"
+        for iv, need in EXT_MIN.get(kind, {}).items():
+            if r[iv] >= need * scale:
+                ext.add(iv)
+        for fam in EXT_FAMILIES:  # ♭13 e 13 juntos não existem: fica a que mais soa
+            mine = [iv for iv in fam if iv in ext]
+            if len(mine) > 1:
+                keep = max(mine, key=lambda iv: r[iv])
+                ext -= set(mine) - {keep}
+        for seg in group:
+            name_chord(seg, root, kind, bass, ext, key)
+    return segs
+
+
 # ---------------------------------------------------------------- melodia
 
-def pitch_track(voc, progress=None, chunk_s=20.0):
-    """f0 da voz (pYIN), em notas MIDI fracionárias + máscara de voz ativa."""
+def pitch_track(voc, progress=None, chunk_s=20.0, extra=False):
+    """f0 da voz (pYIN), em notas MIDI fracionárias + máscara de voz ativa.
+
+    Confiança mínima do pYIN de 0,10 (era 0,25): com 0,25 um terço dos ataques da voz ficava sem nota
+    e as frases entravam atrasadas, em quadros que o pYIN já marcava como voz, com altura e volume.
+    Sem o corte (só "tem voz"), 12-26% das notas novas saíam um semitom erradas (escorregadas).
+    `extra`: devolve também a altura de todos os quadros (mesma correção de afinação) e a máscara
+    "fraca" (voz, altura e volume baixo), usadas para recuar o começo das frases."""
     sr = 16000
     hop = 160
     y = librosa.resample(voc, orig_sr=SR, target_sr=sr)
@@ -662,17 +1075,46 @@ def pitch_track(voc, progress=None, chunk_s=20.0):
     vprob = np.concatenate(probs)
     rms = librosa.feature.rms(y=y, frame_length=1024, hop_length=hop, center=True)[0][:len(f0)]
     rms = np.pad(rms, (0, len(f0) - len(rms)))
-    loud = rms > 0.1 * np.percentile(rms, 95)
-    voiced = vflag & (vprob > 0.25) & loud & np.isfinite(f0)
+    p95 = np.percentile(rms, 95)
+    loud = rms > 0.1 * p95
+    voiced = vflag & (vprob > 0.10) & loud & np.isfinite(f0)
 
     midi = np.full(len(f0), np.nan)
     midi[voiced] = librosa.hz_to_midi(f0[voiced])
+    offset = 0.0
     if voiced.sum() > 50:
         frac = midi[voiced] - np.round(midi[voiced])
         offset = np.angle(np.mean(np.exp(2j * np.pi * frac))) / (2 * np.pi)
         midi -= offset
     times = np.arange(len(f0)) * hop / sr
-    return times, midi, voiced
+    if not extra:
+        return times, midi, voiced
+    fin = np.isfinite(f0)
+    midi_all = np.full(len(f0), np.nan)
+    midi_all[fin] = librosa.hz_to_midi(f0[fin]) - offset
+    weak = vflag & fin & (rms > 0.05 * p95)
+    return times, midi, voiced, midi_all, weak
+
+
+def extend_phrase_starts(events, times, midi_all, weak, quiet=0.25, back=0.15, tol=1.0):
+    """Começo de frase: a primeira nota (sem outra nos `quiet` s antes) recua até `back` s enquanto o
+    quadro já tem voz fraca na mesma altura (até `tol` semitom). O pYIN fica inseguro nos primeiros
+    quadros de uma frase, e a nota entrava depois da voz. Só no começo de frase: em todas as notas
+    isso dobrava as notas adiantadas."""
+    if not events or len(times) < 2:
+        return events
+    dt = times[1] - times[0]
+    out, prev_end = [], -1e9
+    for a, b, p in events:
+        if a - prev_end >= quiet:
+            k = int(round(a / dt))
+            lim = max(prev_end + quiet / 2, a - back)
+            while k - 1 >= 0 and times[k - 1] >= lim and weak[k - 1] and abs(midi_all[k - 1] - p) <= tol:
+                k -= 1
+            a = min(a, float(times[k]))
+        out.append((a, b, p))
+        prev_end = b
+    return out
 
 
 def note_events(times, midi, voiced, max_gap=0.03, min_hold=0.05, min_len=0.06):
@@ -752,9 +1194,14 @@ def quantize_melody(events, grid, subdiv, with_times=False):
             e = s + 1
         if notes and s < notes[-1][0] + notes[-1][1]:
             prev = notes[-1]
-            if s <= prev[0]:  # duas notas no mesmo slot: fica a mais longa
+            if s <= prev[0]:
+                # duas notas no mesmo slot: a altura é a da mais longa, mas o instante continua o do
+                # PRIMEIRO ataque (o cursor e a sílaba disparam quando a voz entra na casa; antes
+                # ficava o da segunda e o cursor pulava até 0,3 s atrasado no nível simples)
                 if (b - a) > prev[3]:
-                    notes[-1] = [s, e - s, p, b - a, a]
+                    prev[2] = p
+                prev[3] = max(prev[3], b - a)
+                prev[1] = max(prev[1], e - prev[0])
                 continue
             prev[1] = s - prev[0]
         if notes:  # o fim da nota some um pouco antes da próxima: liga se o buraco for de 1 slot

@@ -1,48 +1,80 @@
-"""Violão nota por nota: notas do instrumento -> ataques (acordes ou notas soltas) -> posição no
+"""Instrumentos nota por nota: notas do instrumento -> ataques (acordes ou notas soltas) -> posição no
 braço (corda e casa) -> partitura com tablatura (MusicXML).
 
-As notas vêm do Basic Pitch rodando na parte de violão/cavaco da separação (ou na "harmonia", quando
-a música foi separada em 4 partes). A posição no braço é escolhida para a mão andar o mínimo possível.
+Violão, cavaquinho e baixo: pauta + tablatura. Teclado: pauta dupla (clave de sol e de fá), sem
+tablatura. As notas vêm do Basic Pitch rodando na parte de cada instrumento da separação (o cavaco
+está na parte "outros", junto com sopros e cordas: só a região do cavaco é usada). A posição no braço
+é escolhida para a mão andar o mínimo possível.
 """
 from xml.sax.saxutils import escape
 
 import numpy as np
 
 from . import basicpitch as BP
-from .analysis import PC_FLAT, PC_SHARP
+from .analysis import PC_FLAT, PC_SHARP, xml_harmony
 
-OPEN = [64, 59, 55, 50, 45, 40]  # cordas 1 a 6 (1 = Mi agudo), afinação padrão
-LOW, HIGH = OPEN[-1], OPEN[0] + 19
-MAX_FRET = 15
+# Cada instrumento: parte da separação, afinação (cordas da 1ª, a mais aguda, para a última), casas,
+# região usada (MIDI), quantas notas por ataque, clave (sinal, linha, oitava: -1 = soa uma oitava
+# abaixo do escrito), faixa do Basic Pitch (Hz) e o menor volume de nota aceito.
+INSTRUMENTS = {
+    "violao": {"name": "Violão", "stem": "guitar", "open": [64, 59, 55, 50, 45, 40], "max_fret": 15,
+               "lo": 40, "hi": 83, "max_notes": 6, "clef": ("G", 2, -1), "hz": (75, 1400), "min_amp": 0.25},
+    "cavaco": {"name": "Cavaquinho", "stem": "other", "open": [74, 71, 67, 62], "max_fret": 17,
+               "lo": 62, "hi": 91, "max_notes": 4, "clef": ("G", 2, 0), "hz": (280, 1700), "min_amp": 0.3},
+    "baixo": {"name": "Baixo", "stem": "bass", "open": [43, 38, 33, 28], "max_fret": 17,
+              "lo": 28, "hi": 67, "max_notes": 1, "clef": ("F", 4, -1), "hz": (35, 420), "min_amp": 0.25},
+    "teclado": {"name": "Teclado", "stem": "piano", "open": None, "max_fret": 0,
+                "lo": 33, "hi": 96, "max_notes": 6, "clef": None, "hz": (50, 2200), "min_amp": 0.3},
+}
+VIOLAO = INSTRUMENTS["violao"]
+OPEN = VIOLAO["open"]            # cordas 1 a 6 (1 = Mi agudo), afinação padrão
+LOW, HIGH = VIOLAO["lo"], VIOLAO["hi"]
+MAX_FRET = VIOLAO["max_fret"]
 STRUM_S = 0.045                  # notas que começam juntas (uma batida no violão) viram um acorde
 
-KIND_XML = {
-    "maj": "major", "min": "minor", "7": "dominant", "m7": "minor-seventh", "maj7": "major-seventh",
-    "m7b5": "half-diminished", "dim7": "diminished-seventh", "m6": "minor-sixth", "mmaj7": "major-minor",
-    "6": "major-sixth", "aug": "augmented", "dim": "diminished", "sus2": "suspended-second",
-    "sus4": "suspended-fourth", "7sus4": "suspended-fourth", "9": "dominant-ninth", "maj9": "major-ninth",
-    "m9": "minor-ninth", "11": "dominant-11th", "13": "dominant-13th",
-}
 NOTE_TYPES = {1: ("16th", 0), 2: ("eighth", 0), 3: ("eighth", 1), 4: ("quarter", 0), 6: ("quarter", 1),
               8: ("half", 0), 12: ("half", 1), 16: ("whole", 0), 24: ("whole", 1)}
 
 
 # ---------------------------------------------------------------- notas
 
-def transcribe(y, progress=None):
+def transcribe(y, progress=None, hz=(75, 1400)):
     """Notas do instrumento: (início s, fim s, nota MIDI, intensidade)."""
     out = BP.run(y, progress=progress)
-    return BP.notes(out, onset_thresh=0.5, frame_thresh=0.3, min_note_ms=80, min_hz=75, max_hz=1400)
+    return BP.notes(out, onset_thresh=0.5, frame_thresh=0.3, min_note_ms=80, min_hz=hz[0], max_hz=hz[1])
 
 
-def attacks(events, grid, spb, min_amp=0.25):
+def _drop_octave_ghosts(ev):
+    """Instrumento de uma nota só (baixo): o Basic Pitch ouve o harmônico uma oitava acima junto com a
+    nota (Ré3 em cima do Ré2 que o baixo toca). Nota com a oitava de baixo soando junto na maior parte
+    do tempo dela é harmônico: sai."""
+    out = []
+    for a, b, m, amp in ev:
+        dur = max(b - a, 1e-6)
+        ghost = False
+        for a2, b2, m2, _ in ev:
+            if a2 > b:
+                break
+            if m2 == m - 12 and min(b, b2) - max(a, a2) >= 0.5 * dur:
+                ghost = True
+                break
+        if not ghost:
+            out.append((a, b, m, amp))
+    return out
+
+
+def attacks(events, grid, spb, min_amp=None, inst=VIOLAO):
     """Junta as notas em ataques encaixados na grade (spb = casas por tempo).
 
     Devolve [{"slot", "len", "notes": [(midi, intensidade)]}] em ordem; cada ataque dura até o próximo.
     """
     g = np.asarray(grid)
     beats = np.arange(len(g))
-    ev = sorted((a, b, m, amp) for a, b, m, amp in events if amp >= min_amp and LOW <= m <= HIGH)
+    min_amp = inst["min_amp"] if min_amp is None else min_amp
+    lo, hi, cap = inst["lo"], inst["hi"], inst["max_notes"]
+    ev = sorted((a, b, m, amp) for a, b, m, amp in events if amp >= min_amp and lo <= m <= hi)
+    if cap == 1:
+        ev = _drop_octave_ghosts(ev)
     groups = []
     for a, b, m, amp in ev:
         if groups and a - groups[-1]["t"] <= STRUM_S:
@@ -59,12 +91,12 @@ def attacks(events, grid, spb, min_amp=0.25):
     out = []
     for grp in groups:
         s = slot(grp["t"])
-        notes = sorted(grp["notes"].items(), key=lambda kv: -kv[1])[:6]
+        notes = sorted(grp["notes"].items(), key=lambda kv: -kv[1])[:cap]
         if out and out[-1]["slot"] == s:  # dois grupos na mesma casa da grade: junta
             merged = dict(out[-1]["notes"])
             for m, amp in notes:
                 merged[m] = max(amp, merged.get(m, 0.0))
-            out[-1]["notes"] = sorted(merged.items(), key=lambda kv: -kv[1])[:6]
+            out[-1]["notes"] = sorted(merged.items(), key=lambda kv: -kv[1])[:cap]
             out[-1]["end"] = max(out[-1]["end"], slot(grp["end"]))
             continue
         # "t": quando a batida soa na gravação (a grade arredonda; o cursor segue o som)
@@ -77,18 +109,19 @@ def attacks(events, grid, spb, min_amp=0.25):
 
 # ---------------------------------------------------------------- posição no braço
 
-def _shapes(pitches):
+def _shapes(pitches, inst=VIOLAO):
     """Jeitos de tocar as notas (da mais aguda para a mais grave) em cordas diferentes."""
     pitches = sorted(pitches, reverse=True)
+    tuning, max_fret = inst["open"], inst["max_fret"]
     res = []
 
     def rec(i, first, acc):
         if i == len(pitches):
             res.append(tuple(acc))
             return
-        for s in range(first, 7):
-            f = pitches[i] - OPEN[s - 1]
-            if 0 <= f <= MAX_FRET:
+        for s in range(first, len(tuning) + 1):
+            f = pitches[i] - tuning[s - 1]
+            if 0 <= f <= max_fret:
                 rec(i + 1, s + 1, acc + [(s, f)])
     rec(0, 1, [])
     return res
@@ -107,14 +140,22 @@ def _shape_cost(shape):
     return cost, (lo + hi) / 2
 
 
-def assign_tab(atks):
+def no_tab(atks):
+    """Teclado: sem corda e casa (as notas vão como estão, da mais aguda para a mais grave)."""
+    return [{"slot": at["slot"], "len": at["len"], "t": at.get("t"),
+             "notes": [(m, 0, 0) for m in sorted((m for m, _ in at["notes"]), reverse=True)]} for at in atks]
+
+
+def assign_tab(atks, inst=VIOLAO):
     """Escolhe corda e casa de cada nota (Viterbi: forma confortável e mão andando pouco)."""
+    if not inst["open"]:
+        return no_tab(atks)
     options = []
     for at in atks:
         notes = list(at["notes"])
         while True:
             cand = []
-            for sh in _shapes([m for m, _ in notes]):
+            for sh in _shapes([m for m, _ in notes], inst):
                 c, center = _shape_cost(sh)
                 if c is not None:
                     cand.append((c, center, sh))
@@ -188,8 +229,10 @@ def _split(s, e, bar_start, beat_div, cuts):
     return out
 
 
-def write_musicxml(path, title, key, bpm, n_beats, chords, tab, spb, beat_ql):
-    """Escreve a parte de violão: pauta (clave de sol com 8 embaixo) e tablatura de 6 cordas."""
+def write_musicxml(path, title, key, bpm, n_beats, chords, tab, spb, beat_ql, inst=VIOLAO):
+    """Escreve a parte do instrumento. Violão, cavaco e baixo: pauta (na clave do instrumento) e
+    tablatura com uma linha por corda. Teclado: pauta dupla, mão direita (do Dó central para cima) na
+    clave de sol e mão esquerda na clave de fá."""
     from music21 import key as m21key
 
     flats = key["flats"]
@@ -216,16 +259,32 @@ def write_musicxml(path, title, key, bpm, n_beats, chords, tab, spb, beat_ql):
          '<score-partwise version="4.0">',
          f'<work><work-title>{escape(title)}</work-title></work>',
          '<identification><creator type="composer">Transcrição automática — soundStudy</creator></identification>',
-         '<part-list><score-part id="P1"><part-name>Violão</part-name></score-part></part-list>',
+         f'<part-list><score-part id="P1"><part-name>{escape(inst["name"])}</part-name></score-part></part-list>',
          '<part id="P1">']
+    stringed = bool(inst["open"])
+    if stringed:  # pauta e tablatura mostram as mesmas notas
+        staff_notes = (lambda ns: ns, lambda ns: ns)
+    else:          # teclado: cada mão na sua pauta
+        staff_notes = (lambda ns: [n for n in ns if n[0] >= 60], lambda ns: [n for n in ns if n[0] < 60])
+
+    def named(pc, name):
+        """(letra, alteração) pelo nome já escrito na análise (B♭ no tom de Ré), ou pela armadura."""
+        if name:
+            return name[0], (1 if name[1:] == "#" else -1 if name[1:] == "b" else 0)
+        step = _step(pc + 60, flats)
+        return step[0], step[1]
 
     def harmony(c):
-        r = _step(c["root"] + 60, flats)
+        r = named(c["root"], c.get("root_name"))
         h = f'<harmony><root><root-step>{r[0]}</root-step>' + (f'<root-alter>{r[1]}</root-alter>' if r[1] else '') + '</root>'
-        h += f'<kind>{KIND_XML.get(c["kind"], "major")}</kind>'
+        xkind, degrees = xml_harmony(c)
+        h += f'<kind>{xkind}</kind>'
         if c.get("bass") is not None:
-            bs = _step(c["bass"] + 60, flats)
+            bs = named(c["bass"], c.get("bass_name"))
             h += f'<bass><bass-step>{bs[0]}</bass-step>' + (f'<bass-alter>{bs[1]}</bass-alter>' if bs[1] else '') + '</bass>'
+        for value, alter, mod in degrees:
+            h += (f'<degree><degree-value>{value}</degree-value><degree-alter>{alter}</degree-alter>'
+                  f'<degree-type>{mod}</degree-type></degree>')
         return h + '<staff>1</staff></harmony>'
 
     def note_xml(dur, staff, pitch=None, chord=False, tie_in=False, tie_out=False, tech=None):
@@ -256,32 +315,43 @@ def write_musicxml(path, title, key, bpm, n_beats, chords, tab, spb, beat_ql):
         a0, b0 = m * bar, (m + 1) * bar
         x.append(f'<measure number="{m + 1}">')
         if m == 0:
-            tuning = ''.join(f'<staff-tuning line="{i + 1}"><tuning-step>{_step(p, False)[0]}</tuning-step>'
-                             f'<tuning-octave>{_step(p, False)[2]}</tuning-octave></staff-tuning>'
-                             for i, p in enumerate(reversed(OPEN)))
             beats, btype = ("4", "4") if beat_div == 4 else ("12", "8")
+            if stringed:
+                tuning = ''.join(f'<staff-tuning line="{i + 1}"><tuning-step>{_step(p, False)[0]}</tuning-step>'
+                                 + (f'<tuning-alter>{_step(p, False)[1]}</tuning-alter>' if _step(p, False)[1] else '')
+                                 + f'<tuning-octave>{_step(p, False)[2]}</tuning-octave></staff-tuning>'
+                                 for i, p in enumerate(reversed(inst["open"])))
+                sign, line, octv = inst["clef"]
+                clefs = (f'<clef number="1"><sign>{sign}</sign><line>{line}</line>'
+                         + (f'<clef-octave-change>{octv}</clef-octave-change>' if octv else '') + '</clef>'
+                         '<clef number="2"><sign>TAB</sign><line>5</line></clef>'
+                         f'<staff-details number="2"><staff-lines>{len(inst["open"])}</staff-lines>{tuning}</staff-details>')
+            else:
+                clefs = ('<clef number="1"><sign>G</sign><line>2</line></clef>'
+                         '<clef number="2"><sign>F</sign><line>4</line></clef>')
             x.append('<attributes><divisions>4</divisions>'
                      f'<key><fifths>{fifths}</fifths><mode>{key["mode"]}</mode></key>'
                      f'<time><beats>{beats}</beats><beat-type>{btype}</beat-type></time><staves>2</staves>'
-                     '<clef number="1"><sign>G</sign><line>2</line><clef-octave-change>-1</clef-octave-change></clef>'
-                     '<clef number="2"><sign>TAB</sign><line>5</line></clef>'
-                     f'<staff-details number="2"><staff-lines>6</staff-lines>{tuning}</staff-details></attributes>')
+                     f'{clefs}</attributes>')
             unit = '<beat-unit>quarter</beat-unit>' + ('<beat-unit-dot/>' if beat_div == 6 else '')
             x.append(f'<direction placement="above"><direction-type><metronome>{unit}<per-minute>{round(bpm)}</per-minute>'
                      f'</metronome></direction-type><staff>1</staff><sound tempo="{round(bpm * beat_ql, 2)}"/></direction>')
-        items = sorted(by_bar[m])
-        events = []  # (início, fim, notas ou None, liga com o anterior, liga com o próximo)
-        pos = a0
-        for a, b, notes, tie_in, tie_out in items:
-            if a > pos:
-                events.append((pos, a, None, False, False))
-            events.append((a, b, notes, tie_in, tie_out))
-            pos = b
-        if pos < b0:
-            events.append((pos, b0, None, False, False))
+        items = sorted(by_bar[m], key=lambda it: it[0])
         for staff in (1, 2):
             if staff == 2:
                 x.append(f'<backup><duration>{bar}</duration></backup>')
+            events = []  # (início, fim, notas ou None, liga com o anterior, liga com o próximo)
+            pos = a0
+            for a, b, notes, tie_in, tie_out in items:
+                mine = staff_notes[staff - 1](notes)
+                if not mine:
+                    continue
+                if a > pos:
+                    events.append((pos, a, None, False, False))
+                events.append((a, b, mine, tie_in, tie_out))
+                pos = b
+            if pos < b0:
+                events.append((pos, b0, None, False, False))
             for a, b, notes, tie_in, tie_out in events:
                 parts = _split(a, b, a0, beat_div, cuts)
                 for k, (pa, pb) in enumerate(parts):
@@ -294,7 +364,7 @@ def write_musicxml(path, title, key, bpm, n_beats, chords, tab, spb, beat_ql):
                     t_out = tie_out or k < len(parts) - 1
                     for i, (midi, string, fret) in enumerate(notes):
                         x.append(note_xml(pb - pa, staff, _step(midi, flats), chord=i > 0, tie_in=t_in, tie_out=t_out,
-                                          tech=(string, fret) if staff == 2 else None))
+                                          tech=(string, fret) if staff == 2 and stringed else None))
         x.append('</measure>')
     x.append('</part></score-partwise>')
     path.write_text('\n'.join(x), encoding="utf-8")

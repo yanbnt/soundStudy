@@ -118,70 +118,172 @@ def _match(a_words, rec):
     return pairs[::-1]
 
 
-def lrc_offset(starts, onsets, limit=12.0):
-    """Atraso (s) entre a letra sincronizada e esta gravação: o que faz as linhas começarem junto
-    com notas cantadas (com uma leve preferência por atraso pequeno)."""
-    on = np.asarray(onsets, dtype=float)
+def as_events(voice):
+    """Trechos cantados [(início, fim, nota)] a partir dos trechos da análise ou, em análises antigas,
+    só dos inícios das notas (cada um vira um trecho curto)."""
+    out = []
+    for v in voice or []:
+        if isinstance(v, (int, float)):
+            out.append((float(v), float(v) + 0.2, 0))
+        else:
+            out.append((float(v[0]), float(v[1]), int(v[2]) if len(v) > 2 else 0))
+    return sorted(out)
+
+
+def phrase_starts(events, quiet=0.3):
+    """Respirações: início de nota depois de pelo menos `quiet` s sem voz (a 1ª nota também conta)."""
+    out, prev_end = [], -1e9
+    for a, b, _ in events:
+        if a - prev_end >= quiet:
+            out.append(a)
+        prev_end = max(prev_end, b)
+    return np.asarray(out, dtype=float)
+
+
+def lrc_offset(starts, events, limit=12.0, lrc_duration=None, audio_duration=None):
+    """Atraso (s) entre a letra sincronizada (LRC) e esta gravação.
+
+    Cada linha da letra começa numa respiração do cantor: o atraso é o que põe o maior número de
+    carimbos perto de uma respiração (e não perto de qualquer nota: no meio da frase as notas são
+    densas e o máximo caía lá, deslocando a letra inteira em uma frase, ~3 s). Quando a letra da base
+    tem a mesma duração do áudio, é a mesma gravação: a busca fica em ±(diferença + 1,5 s)."""
+    ev = as_events(events)
     st = np.asarray(starts, dtype=float)
-    if len(on) < 5 or not len(st):
+    ph = phrase_starts(ev)
+    if len(ph) < 3 or not len(st):
         return 0.0
-    fps = 50
-    size = int((max(on.max(), st.max()) + limit + 5) * fps)
-    dens = np.zeros(size)
-    np.add.at(dens, np.clip((on * fps).astype(int), 0, size - 1), 1.0)
-    k = np.exp(-0.5 * (np.arange(-18, 19) / 6.0) ** 2)  # desvio de 0,12 s
-    dens = np.convolve(dens, k, mode="same")
+    if lrc_duration and audio_duration:
+        limit = min(limit, abs(float(lrc_duration) - float(audio_duration)) + 1.5)
     best, best_off = -np.inf, 0.0
     for off in np.arange(-limit, limit + 1e-9, 0.02):
-        pos = np.round((st + off) * fps).astype(int)
-        ok = (pos >= 0) & (pos < size)
-        sc = dens[pos[ok]].sum() - 0.01 * abs(off) * len(st)
+        d = np.abs(ph[None, :] - (st[:, None] + off)).min(axis=1)
+        sc = np.exp(-0.5 * (d / 0.15) ** 2).sum() - 0.02 * abs(off)
         if sc > best:
             best, best_off = sc, float(off)
+    # refina pela mediana das linhas que caíram perto de uma respiração
+    d = ph[None, :] - (st[:, None] + best_off)
+    near = d[np.arange(len(st)), np.abs(d).argmin(axis=1)]
+    near = near[np.abs(near) <= 0.4]
+    if len(near) >= 3:
+        best_off += float(np.median(near))
     return best_off
 
 
-def align_synced(lrc, onsets, auto_lines=None, total=None):
+def snap_words(auto_lines, events):
+    """O reconhecimento (Whisper) às vezes marca o início da palavra no silêncio antes da frase: puxa
+    cada início para o primeiro início de nota cantada dentro da palavra [início-0,05; fim-0,03]."""
+    on = np.asarray([a for a, _, _ in as_events(events)], dtype=float)
+    if not len(on):
+        return auto_lines
+    out, last = [], -1.0
+    for ln in auto_lines or []:
+        words = []
+        for w in ln.get("words") or []:
+            w = dict(w)
+            # a nota tem que vir depois do início já usado pela palavra anterior: duas palavras coladas
+            # (fim de uma = início da outra) não podem cair no mesmo ataque
+            cand = on[(on >= w["start"] - 0.05) & (on <= w["end"] - 0.03) & (on > last + 0.02)]
+            if len(cand):
+                w["start"] = round(float(cand[0]), 3)
+            last = max(last, w["start"])
+            words.append(w)
+        out.append({**ln, "words": words, "start": words[0]["start"] if words else ln.get("start")})
+    return out
+
+
+def align_synced(lrc, events, auto_lines=None, total=None, lrc_duration=None):
     """Encaixa a letra sincronizada (LRC) no canto desta gravação.
 
-    `lrc` = [(segundos, texto)] (texto vazio marca o fim da frase anterior); `onsets` = início das
-    notas cantadas (s). Acha o atraso entre a letra e a gravação e espalha as palavras de cada linha
-    pelas notas cantadas da janela dela, sílaba por sílaba; onde o reconhecimento automático ouviu a
-    mesma palavra, usa o tempo dele.
+    `lrc` = [(segundos, texto)] (texto vazio marca o fim da frase anterior); `events` = trechos
+    cantados [(início, fim, nota)] (ou só os inícios, em análises antigas).
+    1. acha o atraso entre a letra e a gravação (pelas respirações, `lrc_offset`);
+    2. cada linha começa na respiração mais próxima do carimbo (±0,8 s) e vai até o começo real da
+       linha seguinte (antes a janela ia até o carimbo seguinte e pegava as 1ªs notas da outra linha);
+    3. dentro da linha, onde o reconhecimento ouviu a mesma palavra, vale o tempo dele (já puxado para
+       a nota); as outras vão sílaba por sílaba sobre as notas da linha; duas palavras na mesma nota:
+       a segunda vai para a nota seguinte.
     """
     stamps = sorted(lrc)
     lines = [(t, txt) for t, txt in stamps if txt.strip()]
     if not lines:
         return []
-    on = np.sort(np.asarray(onsets, dtype=float))
-    off = lrc_offset([t for t, _ in lines], on)
+    ev = as_events(events)
+    on = np.asarray([a for a, _, _ in ev], dtype=float)
+    ph = phrase_starts(ev)
+    off = lrc_offset([t for t, _ in lines], ev, lrc_duration=lrc_duration, audio_duration=total)
     rec = [w for ln in (auto_lines or []) for w in ln["words"]]
+
+    # começo real de cada linha
+    line_start = []
+    for t, _ in lines:
+        target = t + off
+        cand = ph[np.abs(ph - target) <= 0.8] if len(ph) else ph
+        if len(cand):
+            s = float(cand[np.abs(cand - target).argmin()])
+        else:
+            after = on[on >= target - 0.15]
+            s = float(after[0]) if len(after) and after[0] - target < 2.0 else target
+        if line_start and s <= line_start[-1] + 0.1:  # sempre para a frente
+            s = max(target, line_start[-1] + 0.1)
+        line_start.append(s)
+
     out, last = [], -1.0
     for k, (t, text) in enumerate(lines):
-        ws = t + off
-        nxt = [s for s, _ in stamps if s > t]
-        we = (nxt[0] + off) if nxt else min(ws + 8.0, total or ws + 8.0)
-        we = min(we, ws + 12.0)
+        ws = line_start[k]
+        nxt_any = [(s, txt) for s, txt in stamps if s > t]
+        if k + 1 < len(lines):
+            we = line_start[k + 1]
+        else:
+            we = (nxt_any[0][0] + off) if nxt_any else min(ws + 8.0, total or ws + 8.0)
+        # carimbo vazio logo depois da linha = fim da frase na letra da base: as palavras não passam dele
+        # (senão iam para dentro do trecho instrumental, nos vazamentos da voz)
+        if nxt_any and not nxt_any[0][1].strip():
+            we = min(we, nxt_any[0][0] + off + 0.3)
+        we = max(ws + 0.3, min(we, ws + 12.0))
         words = text.split()
         syl = [_syllables(w) for w in words]
-        total_syl = sum(syl)
-        inside = on[(on >= ws - 0.15) & (on < we - 0.05)]
-        # sílaba por sílaba sobre as notas da janela (ou espalhadas por igual, sem notas)
-        starts = []
-        acc = 0
-        for s in syl:
-            frac = acc / total_syl
-            if len(inside):
-                starts.append(float(inside[min(len(inside) - 1, int(frac * len(inside)))]))
-            else:
-                starts.append(ws + frac * max(0.5, we - ws - 0.3))
-            acc += s
-        # palavras que o reconhecimento automático ouviu igual, dentro da janela, ficam no tempo dele
-        near = [w for w in rec if ws - 0.3 <= w["start"] < we]
+        inside = np.round(on[(on >= ws - 0.02) & (on < we - 0.02)], 3)
+        # 1º as palavras que o reconhecimento ouviu (tempo confiável, já puxado para a nota), inclusive as
+        # que cruzam a linha; depois as outras, sílaba por sílaba, só entre as confiáveis vizinhas (antes
+        # o chute podia passar da palavra confiável seguinte e empurrá-la para depois, até 1,3 s)
+        near = [w for w in rec if w["start"] < we and w.get("end", w["start"]) > ws - 0.1]
+        anchor = {}
         for i, j in _match(words, near):
-            starts[i] = float(near[j]["start"])
-        for i in range(len(starts)):  # sempre andando para a frente
-            starts[i] = max(starts[i], (starts[i - 1] if i else last) + 0.05)
+            anchor[i] = round(float(min(max(near[j]["start"], ws), we - 0.05)), 3)
+        keys = sorted(anchor)
+        for i in range(len(keys) - 1, 0, -1):  # âncoras fora de ordem (par errado): fica a mais segura
+            if anchor[keys[i]] <= anchor[keys[i - 1]]:
+                del anchor[keys[i]]
+        starts = [None] * len(words)
+        for i, v in anchor.items():
+            starts[i] = v
+        i = 0
+        while i < len(words):
+            if starts[i] is not None:
+                i += 1
+                continue
+            j = i
+            while j < len(words) and starts[j] is None:
+                j += 1
+            lo = starts[i - 1] if i > 0 else ws - 0.02
+            hi = starts[j] if j < len(words) else we
+            pool = inside[(inside > lo + 0.005) & (inside < hi - 0.005)] if i > 0 else inside[inside < hi - 0.005]
+            gsyl = syl[i:j]
+            tot, acc = sum(gsyl), 0
+            for q, s in zip(range(i, j), gsyl):
+                frac = acc / tot
+                if len(pool):
+                    starts[q] = float(pool[min(len(pool) - 1, int(frac * len(pool)))])
+                else:
+                    a = max(lo + 0.02, ws) if i > 0 else ws
+                    starts[q] = a + frac * max(0.05, hi - a - 0.05)
+                acc += s
+            i = j
+        for i in range(len(starts)):  # sempre andando para a frente (com folga para o arredondamento)
+            prev = starts[i - 1] if i else last
+            if starts[i] <= prev + 0.005:
+                later = inside[inside > prev + 0.01]
+                starts[i] = float(later[0]) if len(later) else prev + 0.05
         ends = starts[1:] + [min(we, starts[-1] + 0.6)]
         ws_out = [{"start": round(a, 3), "end": round(max(b, a + 0.05), 3), "text": w}
                   for w, a, b in zip(words, starts, ends)]
@@ -259,6 +361,11 @@ def align_text(text, auto_lines, anchors=None):
             starts[i] = t0 + (t1 - t0) * acc / total
             acc += wgt
             ends[i] = t0 + (t1 - t0) * acc / total
+    # sempre para a frente: um par errado do reconhecimento podia pôr uma palavra antes da anterior
+    for i in range(1, n):
+        if starts[i] <= starts[i - 1] + 0.005:
+            starts[i] = starts[i - 1] + 0.05
+            ends[i] = max(ends[i], starts[i] + 0.05)
     out = []
     for li, ln in enumerate(lines):
         idx = [i for i in range(n) if words[i][0] == li]

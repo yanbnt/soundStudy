@@ -46,7 +46,8 @@
     songs: [], stages: [], view: 'home', id: null, playerId: null, meta: null, an: null, hue: 140,
     audio: {}, master: null, playing: false, raf: 0, lastSync: 0, actx: null, analyser: null,
     speed: 1, volume: 1, muted: false, syncMs: 0, pos: 0, useBuffers: false, bufs: null, srcs: null,
-    level: 'simples', zoom: 1, osmd: null, cTimes: [], cIdx: 0, sheetStale: false,
+    // no celular a partitura começa menor (cabem mais compassos na largura da tela)
+    level: 'simples', zoom: window.matchMedia('(max-width: 700px)').matches ? 0.7 : 1, osmd: null, cTimes: [], cIdx: 0, sheetStale: false,
     loopN: 0, loopM: 0, loopStart: 0, loopEnd: 0, click: false,
     lastBeat: -1, chordIdx: -2, measure: -1, beat: -2, chips: [], dragging: false,
     pollTimer: 0, libTimer: 0, userScrollAt: 0, filter: 'all', query: '', stageOn: false,
@@ -424,11 +425,18 @@
         '. É uma transcrição automática: confira de ouvido, principalmente nos trechos rápidos.';
     $('#app').classList.remove('no-song');
     $('#handCard').hidden = false;
-    // "Violão" só existe nas músicas analisadas com a transcrição nota por nota
-    const violaoChip = $('#levelSeg [data-level="violao"]');
-    violaoChip.disabled = !an.violao;
-    violaoChip.title = an.violao ? 'O que o violão toca, nota por nota, com tablatura' : 'Refaça a análise (menu ⋯) para ver o violão nota por nota';
-    if (S.level === 'violao' && !an.violao) {
+    // os instrumentos só existem nas músicas analisadas com a transcrição nota por nota (e onde o
+    // instrumento toca de fato)
+    for (const [lv, info] of Object.entries(INSTRUMENT_INFO)) {
+      const chip = $(`#levelSeg [data-level="${lv}"]`);
+      if (!chip) continue;
+      const has = instrumentNotes(lv).length > 0;
+      chip.disabled = !has;
+      chip.title = has ? info.title : (lv === 'violao' || an.instrumentos
+        ? `Não achei ${info.article} nesta gravação`
+        : `Refaça a análise (menu ⋯) para ver ${info.article} nota por nota`);
+    }
+    if (isInstrument(S.level) && !instrumentNotes(S.level).length) {
       S.level = 'simples';
       document.querySelectorAll('#levelSeg .chip').forEach((x) => x.classList.toggle('on', x.dataset.level === 'simples'));
       updateDownloadLink();
@@ -480,6 +488,20 @@
     $('#tCur').textContent = '0:00';
   }
 
+  // Partituras de instrumento: o que cada um toca, nota por nota (violão, cavaco e baixo com tablatura).
+  const INSTRUMENT_INFO = {
+    violao: { title: 'O que o violão toca, nota por nota, com tablatura', article: 'o violão' },
+    baixo: { title: 'O que o baixo toca, nota por nota, com tablatura de 4 cordas', article: 'o baixo' },
+    cavaco: { title: 'O que o cavaquinho toca, nota por nota, com tablatura (Ré Sol Si Ré)', article: 'o cavaquinho' },
+    teclado: { title: 'O que o teclado toca, nas duas mãos', article: 'o teclado' },
+  };
+  const isInstrument = (lv) => Object.prototype.hasOwnProperty.call(INSTRUMENT_INFO, lv);
+  function instrumentNotes(lv) {
+    if (!S.an) return [];
+    if (lv === 'violao') return S.an.violao || [];
+    return (S.an.instrumentos && S.an.instrumentos[lv]) || [];
+  }
+
   // "Simples" junta as trocas rápidas de acorde; "Detalhada" mostra todas.
   function chordsForLevel() {
     if (!S.an) return [];
@@ -515,6 +537,8 @@
       } catch (_) {
         try { S.actx = new (window.AudioContext || window.webkitAudioContext)(); } catch (__) { return false; }
       }
+      // o sistema suspendeu o áudio no meio da música: pausa de verdade, guardando a posição certa
+      S.actx.onstatechange = () => { if (S.actx.state !== 'running' && S.playing) pause(); };
     }
     if (!S.ch) buildGraph();
     return true;
@@ -645,10 +669,13 @@
   // o instante do relógio do WebAudio que está saindo no fone agora
   function heardCtxTime() {
     const ctx = S.actx;
+    // áudio suspenso (no celular: ligação, outro app, fone Bluetooth desconectando): o relógio parou e
+    // o cursor também tem que parar (antes ele seguia andando e depois pulava para trás)
+    if (ctx.state !== 'running') return ctx.currentTime - outLatency();
     if (ctx.getOutputTimestamp) {
       const ts = ctx.getOutputTimestamp();
       if (ts && ts.contextTime > 0 && ts.performanceTime > 0) {
-        return ts.contextTime + (performance.now() - ts.performanceTime) / 1000;
+        return Math.min(ts.contextTime + (performance.now() - ts.performanceTime) / 1000, ctx.currentTime);
       }
     }
     return ctx.currentTime - outLatency();
@@ -1026,7 +1053,7 @@
     }
     const ci = chordAt(t);
     if (ci !== S.chordIdx) { updateChord(ci); changed = true; }
-    if (S.level === 'violao') updateViolao(b);
+    if (isInstrument(S.level)) updateViolao(b);
     if (changed) {
       const c = S.chords[S.chordIdx];
       $('#nbSub').textContent = `${c && c.kind !== 'N' ? 'Acorde ' + c.display : 'Sem acorde'} • compasso ${Math.min(S.measure + 1, S.an.measures)}`;
@@ -1078,20 +1105,53 @@
     }
   }
 
-  // Nível "Violão": o braço mostra as notas que o violão está tocando agora (e apagadas as próximas).
+  // Diagramas no instrumento da partitura aberta (nos níveis de melodia, o violão).
+  const diagramInst = () => (isInstrument(S.level) ? S.level : 'violao');
+  const INST_NOW = { violao: 'Violão agora', baixo: 'Baixo agora', cavaco: 'Cavaco agora', teclado: 'Teclado agora' };
+
+  // Níveis de instrumento: o cartão mostra as notas que ele está tocando agora na gravação (e apagadas as
+  // próximas): no braço do violão, do cavaco ou do baixo, ou nas teclas do teclado.
   function updateViolao(b) {
-    const V = S.an && S.an.violao;
+    const V = instrumentNotes(S.level);
     if (!V || !V.length) return;
     let lo = 0, hi = V.length - 1, i = -1;
     while (lo <= hi) { const mid = (lo + hi) >> 1; if (V[mid][0] <= b + 0.02) { i = mid; lo = mid + 1; } else hi = mid - 1; }
     const sounding = i >= 0 && b < V[i][0] + V[i][1] + 0.25 ? i : -1; // um respiro depois do fim, para dar tempo de ver
-    const key = sounding >= 0 ? sounding : -(i + 3);
+    // sem nota soando o cartão mostra o acorde: redesenha também quando o acorde troca
+    const key = sounding >= 0 ? sounding : `p${i}:${S.chordIdx}`;
     if (key === S.vIdx) return;
     S.vIdx = key;
     const now = sounding >= 0 ? V[sounding][2] : [];
     const next = V[i + 1] ? V[i + 1][2] : [];
-    $('#handLabel').textContent = now.length ? 'Violão agora' : 'Prepare';
-    $('#handSvg').innerHTML = ChordDiagram.play(now, next, noteName);
+    setHandLegend(now.length ? 'live' : S.level);
+    if (!now.length) {
+      // nada soando (introdução, pausa): a forma do acorde de agora (ou do próximo) no instrumento
+      const c = S.chords[S.chordIdx];
+      const h = c && c.kind !== 'N' ? c : nextChord(S.chordIdx);
+      $('#handLabel').textContent = c && c.kind !== 'N' ? 'Como tocar' : 'Prepare';
+      $('#handChord').textContent = h ? h.display : '—';
+      $('#handSvg').innerHTML = ChordDiagram.neckFor(h, S.level, noteName);
+      return;
+    }
+    $('#handLabel').textContent = INST_NOW[S.level];
+    $('#handSvg').innerHTML = S.level === 'teclado'
+      ? ChordDiagram.keysPlay(now, next, noteName)
+      : ChordDiagram.play(now, next, noteName, S.level);
+  }
+
+  // Legenda do cartão "Como tocar", do jeito de cada instrumento.
+  const LEGENDS = {
+    violao: '<span><i>1</i>indicador</span><span><i>2</i>médio</span><span><i>3</i>anelar</span><span><i>4</i>mínimo</span><span class="hl-sym">○ corda solta</span><span class="hl-sym">× não toca</span>',
+    cavaco: '<span><i>1</i>indicador</span><span><i>2</i>médio</span><span><i>3</i>anelar</span><span><i>4</i>mínimo</span><span class="hl-sym">○ corda solta</span><span class="hl-sym">× não toca</span>',
+    baixo: '<span><i class="wide">Ré</i>nota a tocar (uma de cada vez)</span><span class="hl-sym">○ corda solta</span><span class="hl-sym">números embaixo: casa</span>',
+    teclado: '<span><b class="lg kb-on-l"></b>mão direita (acorde)</span><span><b class="lg kb-root-l"></b>raiz do acorde</span><span><b class="lg kb-bass-l"></b>mão esquerda (baixo)</span>',
+    live: '<span><b class="lg live-l"></b>soando agora (nome da nota)</span><span><b class="lg next-l"></b>vem depois: já prepare</span>',
+  };
+  function setHandLegend(kind) {
+    if (S.handLegend === kind) return;
+    S.handLegend = kind;
+    const el = document.querySelector('.hand-legend');
+    if (el) el.innerHTML = LEGENDS[kind] || LEGENDS.violao;
   }
 
   function nextChord(ci) {
@@ -1107,7 +1167,7 @@
     const c = S.chords[ci];
     const real = c && c.kind !== 'N';
     const sub = real ? cap(c.spoken) : (ci < 0 ? 'Aperte o play' : 'Sem acorde aqui');
-    const diagram = real ? ChordDiagram.svg(c.root, c.kind, { width: 120, height: 140 }) : '';
+    const diagram = real ? ChordDiagram.forInstrument(c, diagramInst(), { width: 120, height: 140 }) : '';
     $('#nowChord').textContent = real ? c.display : '—';
     $('#nowSub').textContent = sub;
     $('#nowDiagram').innerHTML = diagram;
@@ -1118,17 +1178,19 @@
     $('#hudDiagram').innerHTML = diagram;
     const n = nextChord(ci);
     // onde pôr os dedos no braço do violão: o acorde de agora ou, enquanto não tem, o que vem
-    // (no nível "Violão" o braço mostra as notas da gravação, em updateViolao)
+    // (nos níveis de instrumento o cartão mostra as notas da gravação, em updateViolao)
     const h = real ? c : n;
     $('#handChord').textContent = h ? h.display : '—';
-    if (S.level !== 'violao') {
+    if (!isInstrument(S.level)) {
+      setHandLegend('violao');
       $('#handLabel').textContent = real || !h ? 'Como tocar' : 'Prepare';
-      $('#handSvg').innerHTML = ChordDiagram.neck(h ? h.root : null, h ? h.kind : null);
+      // neckFor: com extensões, 5-, baixo com barra e tipos sem forma pronta (E5, 7(2)) também
+      $('#handSvg').innerHTML = ChordDiagram.neckFor(h, 'violao', noteName);
     }
     $('#nextChord').textContent = n ? n.display : '—';
     $('#stageNext').textContent = n ? n.display : '—';
     $('#hudNext').textContent = n ? n.display : '—';
-    $('#nextDiagram').innerHTML = n ? ChordDiagram.svg(n.root, n.kind, { width: 92, height: 108 }) : '';
+    $('#nextDiagram').innerHTML = n ? ChordDiagram.forInstrument(n, diagramInst(), { width: 92, height: 108 }) : '';
     const chip = S.chips[ci];
     if (chip) {
       chip.classList.add('on');
@@ -1180,7 +1242,41 @@
         };
         for (const [k, v] of Object.entries(labels)) if (E[k] !== undefined) rules.ChordSymbolLabelTexts.setValue(E[k], v);
       }
+      extendedChordNames(rules);
     } catch (_) { /* versão sem suporte: fica a cifra padrão */ }
+  }
+
+  // Acordes com extensões (D6(9), G7M(♯11), A7(4/9)): a partitura traz o tipo e os graus acrescentados;
+  // aqui cada combinação da música ganha o nome brasileiro que a análise já escreveu (mesmo texto da tela).
+  // A análise manda, em cada acorde, o tipo MusicXML e os graus (c.xml), os mesmos que vão para a
+  // partitura; o OSMD lê o tipo tirando o primeiro hífen e escreve o grau como acidente + número.
+  const ACC = { '-1': '♭', 0: '', 1: '♯' };
+  function osmdChordKey(c) {
+    if (!c.xml) return null;
+    const kind = c.xml.kind.replace('-', '');
+    const deg = { add: [], alter: [], subtract: [] };
+    for (const [value, alter, mod] of c.xml.degrees || []) if (deg[mod]) deg[mod].push((ACC[alter] || '') + value);
+    return { kind, adds: deg.add, alts: deg.alter, subs: deg.subtract };
+  }
+  function extendedChordNames(rules) {
+    if (!S.an || typeof rules.addChordName !== 'function') return;
+    const seen = new Map();
+    for (const c of [...(S.an.chords_detalhado || []), ...(S.an.chords || [])]) {
+      // todo acorde com nome escrito pela análise (com extensões, ou do jeito da cifra colada: A7+)
+      if (!c || c.kind === 'N' || c.suffix == null) continue;
+      const k = osmdChordKey(c);
+      if (!k) continue;
+      const id = [k.kind, k.adds.join(','), k.alts.join(','), k.subs.join(',')].join('|');
+      if (!seen.has(id)) seen.set(id, { name: c.suffix, ...k });
+    }
+    const before = rules.CustomChords.length;
+    // os mais específicos primeiro: o OSMD usa o primeiro nome cujos graus estão todos no acorde
+    const size = (v) => v.adds.length + v.alts.length + v.subs.length;
+    for (const v of [...seen.values()].sort((a, b) => size(b) - size(a))) {
+      rules.addChordName(v.name, v.kind, v.adds, v.alts, v.subs);
+    }
+    const mine = rules.CustomChords.splice(before);
+    rules.CustomChords.unshift(...mine);
   }
 
   const OSMD_OPTIONS = {
@@ -1189,15 +1285,20 @@
   };
 
   // Uma partitura na tela: o desenho (osmd), o tempo de cada posição do cursor e onde ele está.
-  async function makeSheet(host, zoom, alpha) {
-    host.innerHTML = '';
+  // `isCurrent`: a partitura só aparece se ainda for a pedida (trocar de instrumento rápido não deixa
+  // a anterior, que terminou de carregar depois, passar por cima da nova).
+  async function makeSheet(host, zoom, alpha, isCurrent = () => true) {
+    const box = document.createElement('div');
     // cursor na cor da música (no papel branco, um pouco mais forte que o cinza de antes)
-    const osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay(host, {
+    const osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay(box, {
       ...OSMD_OPTIONS,
       cursorsOptions: [{ type: 0, color: S.songHex || '#000000', alpha: S.songHex ? Math.max(alpha, 0.32) : alpha, follow: false }],
     });
     brazilianChordLabels(osmd);
     await osmd.load(`/files/${S.playerId}/score_${S.level}.musicxml`);
+    if (!isCurrent()) return null;
+    host.innerHTML = '';
+    host.appendChild(box);
     osmd.zoom = zoom;
     osmd.render();
     osmd.cursor.show();
@@ -1208,16 +1309,17 @@
 
   async function loadSheet() {
     const id = S.playerId;
+    const token = (S.sheetToken = (S.sheetToken || 0) + 1);
     $('#paperLoading').hidden = false;
     $('#paperLoading').textContent = 'Carregando partitura…';
     let sheet;
     try {
-      sheet = await makeSheet($('#osmd'), S.zoom, 0.16);
+      sheet = await makeSheet($('#osmd'), S.zoom, 0.16, () => token === S.sheetToken && S.playerId === id);
     } catch (e) {
-      $('#paperLoading').textContent = 'Não consegui abrir a partitura: ' + e.message;
+      if (token === S.sheetToken) $('#paperLoading').textContent = 'Não consegui abrir a partitura: ' + e.message;
       return;
     }
-    if (S.playerId !== id) return;
+    if (!sheet || S.playerId !== id || token !== S.sheetToken) return;
     S.sheet = sheet;
     S.sheetStale = false;
     $('#paperLoading').hidden = true;
@@ -1249,8 +1351,8 @@
     const ql = (an && an.beat_ql) || 1; // semínimas da partitura → tempos da análise (12/8: 1,5)
     const real = new Map();
     const key = (b) => Math.round(b * 24);
-    if (S.level === 'violao') {
-      for (const v of an.violao || []) if (v[3] > 0) real.set(key(v[0]), v[3]);
+    if (isInstrument(S.level)) {
+      for (const v of instrumentNotes(S.level)) if (v[3] > 0) real.set(key(v[0]), v[3]);
     } else {
       const notes = (an.melody || {})[S.level] || [];
       const times = (an.melody_times || {})[S.level] || [];
@@ -1312,7 +1414,22 @@
 
   const NOTE_FLAT = ['Dó', 'Ré♭', 'Ré', 'Mi♭', 'Mi', 'Fá', 'Sol♭', 'Sol', 'Lá♭', 'Lá', 'Si♭', 'Si'];
   const NOTE_SHARP = ['Dó', 'Dó♯', 'Ré', 'Ré♯', 'Mi', 'Fá', 'Fá♯', 'Sol', 'Sol♯', 'Lá', 'Lá♯', 'Si'];
-  const noteName = (midi) => ((S.an && S.an.key.flats) ? NOTE_FLAT : NOTE_SHARP)[((midi % 12) + 12) % 12];
+  // nome da nota pela função dela no tom (como analysis.spell no servidor): em Ré menor o Dó♯ do A7 é
+  // Dó♯, não Ré♭; nomes raros (Dó♭, Fá♭, Mi♯, Si♯) voltam ao nome comum da armadura
+  const SP_LET = 'CDEFGAB', SP_NAT = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 }, SP_DEG = [0, 1, 1, 2, 2, 3, 3, 4, 5, 5, 6, 6];
+  const SP_PT = { C: 'Dó', D: 'Ré', E: 'Mi', F: 'Fá', G: 'Sol', A: 'Lá', B: 'Si' };
+  const noteName = (midi) => {
+    const pc = ((midi % 12) + 12) % 12;
+    const k = S.an && S.an.key;
+    if (k && k.name && k.tonic != null) {
+      const letter = SP_LET[(SP_LET.indexOf(k.name[0]) + SP_DEG[(pc - k.tonic + 12) % 12]) % 7];
+      let diff = (pc - SP_NAT[letter] + 12) % 12;
+      if (diff > 6) diff -= 12;
+      const rare = (letter === 'C' || letter === 'F') ? diff === -1 : (letter === 'E' || letter === 'B') && diff === 1;
+      if (Math.abs(diff) <= 1 && !rare) return SP_PT[letter] + (diff === 1 ? '♯' : diff === -1 ? '♭' : '');
+    }
+    return ((k && k.flats) ? NOTE_FLAT : NOTE_SHARP)[pc];
+  };
 
   // notas, pautas, cifras e letra em branco, direto no desenho (filtro de imagem pesa demais)
   function whiteInk(osmd) {
@@ -1521,7 +1638,7 @@
     return st;
   }
 
-  const melodyNotes = () => (S.an && S.an.melody && S.an.melody[S.level === 'violao' ? 'detalhado' : S.level]) || [];
+  const melodyNotes = () => (S.an && S.an.melody && S.an.melody[isInstrument(S.level) ? 'detalhado' : S.level]) || [];
 
   function resetMelodyCursor() {
     const notes = melodyNotes();
@@ -1980,6 +2097,20 @@
     if (!el) return;
     const t = target(key);
     const p = posFromDb(volToDb(t.vol));
+    const row = document.querySelector(`.cxp-row[data-k="${key}"]`); // a mesma linha na mesa do celular
+    if (row) {
+      const vol = row.querySelector('.cxp-vol');
+      const v = Math.round(p * 1000);
+      if (document.activeElement !== vol) setRange(vol, v); // não briga com o dedo que está arrastando
+      else vol.style.setProperty('--p', `${v / 10}%`);
+      row.querySelector('.cxp-db').textContent = `${fmtVol(t.vol)} dB`;
+      row.classList.toggle('off', !on);
+      if (key === '_bus') row.querySelector('.cxp-lim').classList.toggle('on', t.limiter);
+      else {
+        row.querySelector('.cxp-m').classList.toggle('on', t.mute);
+        row.querySelector('.cxp-s').classList.toggle('on', t.solo);
+      }
+    }
     const f = el.querySelector('.fader');
     f.style.setProperty('--p', p.toFixed(4));
     f.setAttribute('aria-valuenow', Math.round(p * 100));
@@ -2124,13 +2255,13 @@
     const hold = (on) => { busy = on; el.classList.toggle('busy', on); render(); };
     el._render = render;
     el.onpointerdown = (e) => {
-      e.preventDefault();
-      el.focus();
-      el.setPointerCapture(e.pointerId);
+      if (e.pointerType !== 'touch') e.preventDefault();
+      el.focus({ preventScroll: true });
+      try { el.setPointerCapture(e.pointerId); } catch (_) { /* sem captura, o arrasto segue no elemento */ }
       let y = e.clientY, u = toU(get());
       hold(true);
       el.onpointermove = (ev) => {
-        u = Math.max(0, Math.min(1, u + (y - ev.clientY) / (ev.shiftKey ? 900 : 180)));
+        u = Math.max(0, Math.min(1, u + (y - ev.clientY) / (ev.shiftKey ? 900 : ev.pointerType === 'touch' ? 140 : 180)));
         y = ev.clientY;
         set(fromU(u));
       };
@@ -2210,23 +2341,36 @@
       target(key).vol = dbToVol(d);
       applyMix();
     };
-    el.onpointerdown = (e) => {
-      e.preventDefault();
-      el.focus();
-      el.setPointerCapture(e.pointerId);
+    // a coluna inteira do canal (escala, fader e medidor) pega o arrasto: no celular o dedo errava o
+    // fader fininho, caía do lado e a tela rolava no lugar dele
+    const zone = el.closest('.cx-fa') || el;
+    zone.onpointerdown = (e) => {
+      if (e.target.closest('.cx-clip')) return;
+      const touch = e.pointerType === 'touch';
+      if (!touch) e.preventDefault();
+      el.focus({ preventScroll: true });
+      try { zone.setPointerCapture(e.pointerId); } catch (_) { /* sem captura, o arrasto segue no elemento */ }
       const track = el.querySelector('.fader-track').getBoundingClientRect();
       const cap = el.querySelector('.fader-cap').getBoundingClientRect();
-      if (e.clientY < cap.top || e.clientY > cap.bottom) setPos((track.bottom - e.clientY) / track.height);
+      // mouse: clicar no trilho pula para lá. Dedo: só arrastando (encostar para rolar os canais não
+      // pode mudar o volume)
+      if (!touch && (e.clientY < cap.top || e.clientY > cap.bottom)) setPos((track.bottom - e.clientY) / track.height);
       let y = e.clientY, p = posNow();
-      el.onpointermove = (ev) => {
+      zone.classList.add('dragging');
+      zone.onpointermove = (ev) => {
         p = Math.max(0, Math.min(1, p + (y - ev.clientY) / (track.height * (ev.shiftKey ? 5 : 1))));
         y = ev.clientY;
         setPos(p);
       };
-      el.onpointerup = el.onpointercancel = () => { el.onpointermove = null; saveMix(); };
+      zone.onpointerup = zone.onpointercancel = () => {
+        zone.onpointermove = null;
+        zone.classList.remove('dragging');
+        saveMix();
+      };
     };
     el.onwheel = (e) => { e.preventDefault(); setPos(posNow() - Math.sign(e.deltaY) * (e.shiftKey ? 0.004 : 0.02)); saveMix(); };
-    el.ondblclick = () => { target(key).vol = 1; applyMix(); saveMix(); };
+    // duplo clique volta a 0 dB: na zona inteira (é ela que captura o ponteiro e recebe o clique)
+    zone.ondblclick = (e) => { if (!e.target.closest('.cx-clip')) { target(key).vol = 1; applyMix(); saveMix(); } };
     el.onkeydown = (e) => {
       const steps = { ArrowUp: 0.02, ArrowRight: 0.02, ArrowDown: -0.02, ArrowLeft: -0.02, PageUp: 0.1, PageDown: -0.1 };
       if (e.key in steps) setPos(posNow() + steps[e.key] * (e.shiftKey ? 0.2 : 1));
@@ -2292,6 +2436,17 @@
       </div>
       <div class="cx-body">
         <div class="cx-strips" id="cxStrips">${strips}${master}</div>
+        <div class="cx-phone" id="cxPhone">${[...STEMS.map((s) => ({ k: s.key, name: s.name })), { k: '_bus', name: 'Volume geral' }].map((r) => `
+          <div class="cxp-row${r.k === '_bus' ? ' master' : ''}" data-k="${r.k}">
+            <div class="cxp-top">${stemIcon(r.k)}<span class="cxp-name">${esc(r.name)}</span><b class="cxp-db">0,0 dB</b></div>
+            <div class="cxp-ctl">
+              <input type="range" class="cxp-vol" min="0" max="1000" step="1" aria-label="Volume: ${esc(r.name)}">
+              ${r.k === '_bus'
+                ? '<button class="cxp-btn cxp-lim" aria-label="Limitador">Limitador</button>'
+                : `<button class="cxp-btn cxp-m" aria-label="Mudo: ${esc(r.name)}">Mudo</button><button class="cxp-btn cxp-s" aria-label="Solo: ${esc(r.name)}">Solo</button>`}
+            </div>
+          </div>`).join('')}
+        </div>
         <div class="cx-eq" id="cxEq" hidden>
           <div class="cx-eq-side">${['_bus', ...STEMS.map((s) => s.key)].map((k) => `<button data-sel="${k}">${stemIcon(k)}<span>${esc(chName(k))}</span><i class="cx-eqdot" title="Equalizador mexido"></i></button>`).join('')}</div>
           <div class="cx-eq-main">
@@ -2329,6 +2484,25 @@
           applyMix();
           saveMix();
         };
+      }
+    });
+    // mesa do celular: uma linha por instrumento, volume deitado (o deslizante do próprio celular) e
+    // Mudo/Solo grandes; mexe nos mesmos valores dos faders
+    box.querySelectorAll('.cxp-row').forEach((row) => {
+      const k = row.dataset.k;
+      const vol = row.querySelector('.cxp-vol');
+      vol.oninput = () => {
+        let d = dbFromPos(vol.value / 1000);
+        if (Math.abs(d) < 0.5) d = 0; // trava no 0 dB
+        target(k).vol = dbToVol(d);
+        applyMix();
+      };
+      vol.onchange = () => saveMix();
+      if (k === '_bus') {
+        row.querySelector('.cxp-lim').onclick = () => { S.bus.limiter = !S.bus.limiter; applyMix(); saveMix(); };
+      } else {
+        row.querySelector('.cxp-m').onclick = () => { S.mix[k].mute = !S.mix[k].mute; applyMix(); saveMix(); };
+        row.querySelector('.cxp-s').onclick = () => { S.mix[k].solo = !S.mix[k].solo; applyMix(); saveMix(); };
       }
     });
     box.querySelectorAll('[data-q]').forEach((b) => {
@@ -2382,6 +2556,7 @@
       b.setAttribute('aria-selected', String(on));
     });
     $('#cxStrips').hidden = tab !== 'canais';
+    $('#cxPhone').hidden = tab !== 'canais'; // a lista do celular também sai na aba do equalizador
     $('#cxEq').hidden = tab !== 'eq';
     if (tab === 'eq') {
       renderEqPanel();
@@ -3013,6 +3188,46 @@
     }
   }
 
+  // ------------------------------------------------------------ acordes da cifra colada
+  async function openCifraEditor() {
+    $('#moreMenu').hidden = true;
+    $('#cifraText').value = '';
+    $('#cifraAuto').hidden = true;
+    try {
+      const r = await api(`/api/songs/${S.playerId}/cifra`);
+      $('#cifraText').value = r.text || '';
+      $('#cifraAuto').hidden = r.source !== 'cifra';
+    } catch (_) { /* abre vazia */ }
+    $('#cifraModal').hidden = false;
+    $('#cifraText').focus();
+  }
+
+  async function saveCifra(text) {
+    const btn = $('#cifraSave');
+    const id = S.playerId;
+    const buttons = ['#cifraSave', '#cifraPaste', '#cifraAuto'];
+    if (S.cifraSaving) return; // um encaixe por vez
+    S.cifraSaving = true;
+    buttons.forEach((b) => { $(b).disabled = true; });
+    btn.textContent = 'Encaixando…';
+    try {
+      const m = await api(`/api/songs/${id}/cifra`, { method: 'PUT', body: JSON.stringify({ text }) });
+      if (S.playerId !== id) return; // a pessoa abriu outra música enquanto encaixava
+      $('#cifraModal').hidden = true;
+      await applyLyrics(m);
+      renderChordline();
+      S.chordIdx = -2; // os painéis de acorde agora/próximo redesenham com os acordes novos
+      tick();
+      toast(text.trim() ? 'Acordes da cifra encaixados na música.' : 'Voltei aos acordes que o soundStudy ouviu.');
+    } catch (e) {
+      toast('Não consegui usar a cifra: ' + e.message);
+    } finally {
+      S.cifraSaving = false;
+      buttons.forEach((b) => { $(b).disabled = false; });
+      btn.textContent = 'Encaixar o texto acima';
+    }
+  }
+
   async function reprocess(id, separacao) {
     try {
       await api(`/api/songs/${id}/reprocess` + (separacao ? `?separacao=${separacao}` : ''), { method: 'POST' });
@@ -3160,6 +3375,7 @@
       $('#zoomVal').textContent = Math.round(S.zoom * 100) + '%';
       rerenderSheet();
     };
+    $('#zoomVal').textContent = Math.round(S.zoom * 100) + '%';
     $('#zoomIn').onclick = () => setZoom(S.zoom + 0.1);
     $('#zoomOut').onclick = () => setZoom(S.zoom - 0.1);
 
@@ -3224,6 +3440,89 @@
     $('#lyrQuery').onkeydown = (e) => { if (e.key === 'Enter') searchLyrics(); if (e.key === 'Escape') $('#lyricsModal').hidden = true; };
     $('#lyricsText').onkeydown = (e) => { if (e.key === 'Escape') $('#lyricsModal').hidden = true; };
     $('#lyricsModal').onclick = (e) => { if (e.target === $('#lyricsModal')) $('#lyricsModal').hidden = true; };
+    // celular: o cartão "Como tocar" sai da coluna da biblioteca (escondida) e vai para baixo do "Tocando agora"
+    const phoneMq = window.matchMedia('(max-width: 700px)');
+    const placeHand = () => {
+      const hc = $('#handCard');
+      if (phoneMq.matches) document.querySelector('#viewPlayer .now').after(hc);
+      else document.querySelector('.sidebar').appendChild(hc);
+    };
+    if (phoneMq.addEventListener) phoneMq.addEventListener('change', placeHand);
+    placeHand();
+    // celular: a biblioteca abre como gaveta por cima da tela
+    const setLib = (open) => {
+      $('#app').classList.toggle('lib-open', open);
+      $('#btnLib').setAttribute('aria-expanded', String(open));
+    };
+    $('#btnLib').onclick = () => setLib(!$('#app').classList.contains('lib-open'));
+    $('#songList').addEventListener('click', () => setLib(false));
+    $('#btnHome').addEventListener('click', () => setLib(false));
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') setLib(false); });
+    // abrir no celular (só aparece no próprio computador)
+    if (!['localhost', '127.0.0.1', '[::1]'].includes(location.hostname)) $('#btnPhone').hidden = true;
+    $('#btnPhone').onclick = async (e) => {
+      e.stopPropagation();
+      closeMenus();
+      $('#phoneQr').innerHTML = '';
+      $('#phoneUrl').textContent = 'Procurando o endereço deste computador…';
+      $('#phoneHint').textContent = '';
+      $('#phoneModal').hidden = false;
+      try {
+        const r = await api('/api/celular');
+        $('#phoneQr').innerHTML = r.qr_svg || '';
+        $('#phoneUrl').textContent = r.url || 'Este computador não está em nenhuma rede Wi-Fi.';
+        $('#phoneHint').textContent = !r.url ? 'Conecte o computador ao Wi-Fi e tente de novo.'
+          : (r.ouvindo_rede
+            ? 'Se não abrir no celular: confira se os dois estão no mesmo Wi-Fi. Na primeira vez, o Windows pode perguntar se o Python pode usar a rede: toque em Permitir.'
+            : 'O soundStudy ainda não está aberto para a rede. Feche a janela do soundStudy e abra de novo pelo atalho; depois volte aqui.');
+      } catch (err) {
+        $('#phoneUrl').textContent = 'Não consegui preparar o acesso: ' + err.message;
+      }
+    };
+    // fora de casa: túnel pela internet (liga e desliga aqui no computador)
+    const showTunel = (t) => {
+      const on = !!(t && t.ligado);
+      $('#tunelBtn').textContent = on ? 'Desligar acesso pela internet' : 'Ligar acesso pela internet';
+      $('#tunelQr').innerHTML = (t && t.qr_svg) || '';
+      $('#tunelBox').hidden = !(t && t.url);
+      $('#tunelUrl').textContent = (t && t.url) || '';
+      if (t && t.erro) toast(t.erro);
+    };
+    const loadTunel = async () => { try { showTunel(await api('/api/tunel')); } catch (_) { /* fora do computador */ } };
+    $('#btnPhone').addEventListener('click', loadTunel);
+    $('#tunelBtn').onclick = async () => {
+      const btn = $('#tunelBtn');
+      const on = btn.textContent.startsWith('Desligar');
+      btn.disabled = true;
+      btn.textContent = on ? 'Desligando…' : 'Abrindo o túnel… (alguns segundos)';
+      try {
+        showTunel(await api(on ? '/api/tunel/desligar' : '/api/tunel/ligar', { method: 'POST' }));
+      } catch (e) {
+        toast('Não consegui: ' + e.message);
+        await loadTunel();
+      } finally {
+        btn.disabled = false;
+      }
+    };
+    $('#phoneClose').onclick = () => { $('#phoneModal').hidden = true; };
+    $('#phoneModal').onclick = (e) => { if (e.target === $('#phoneModal')) $('#phoneModal').hidden = true; };
+    $('#btnCifraMenu').onclick = openCifraEditor;
+    $('#cifraCancel').onclick = () => { $('#cifraModal').hidden = true; };
+    $('#cifraSave').onclick = () => saveCifra($('#cifraText').value);
+    $('#cifraAuto').onclick = () => saveCifra('');
+    $('#cifraPaste').onclick = async () => {
+      let text = '';
+      try { text = await navigator.clipboard.readText(); } catch (_) {
+        toast('Não consegui ler o que você copiou. Cole no campo acima (Ctrl+V) e toque em "Encaixar o texto acima".');
+        $('#cifraText').focus();
+        return;
+      }
+      if (!text.trim()) { toast('Nada copiado ainda. Abra a cifra, selecione tudo e copie (Ctrl+C).'); return; }
+      $('#cifraText').value = text;
+      saveCifra(text);
+    };
+    $('#cifraText').onkeydown = (e) => { if (e.key === 'Escape') $('#cifraModal').hidden = true; };
+    $('#cifraModal').onclick = (e) => { if (e.target === $('#cifraModal')) $('#cifraModal').hidden = true; };
     $('#btnReanalyze').onclick = () => reprocess(S.playerId);
     $('#btnReMax').onclick = () => reprocess(S.playerId, 'maxima');
     const openQuality = toggleMenu('#qualityMenu');
@@ -3249,6 +3548,8 @@
 
     const main = $('#main');
     main.addEventListener('wheel', () => { S.userScrollAt = performance.now(); }, { passive: true });
+    // no celular a pessoa rola com o dedo: o acompanhamento da partitura espera 3 s, como na rodinha
+    main.addEventListener('touchmove', () => { S.userScrollAt = performance.now(); }, { passive: true });
     main.addEventListener('scroll', () => {
       const show = S.view !== 'home' && main.scrollTop > 250;
       $('#mainTop').classList.toggle('visible', show); // "show" é o nome do Modo Show: não reusar

@@ -36,7 +36,10 @@ Plano de negócio (Claude Docs): https://claude.ai/code/artifact/d81bf2c1-bd90-4
 | `hardware.py` | **Modo de qualidade** (`data/config.json`: auto, rápida, máxima). Detecta placa NVIDIA (CUDA) e decide: separação máxima, Whisper `large-v3` na placa e animações em resolução cheia a 60 quadros; sem placa: rápida, `small`, animações leves. `/api/config` (GET/PUT) e engrenagem no topo da tela |
 | `separation.py` | Dois motores, mesmas 6 partes. **Rápida**: Demucs htdemucs_6s (MIT); confunde violão de nylon com piano às vezes (intro, finais). **Máxima**: BS-RoFormer SW (pacote `bs-roformer-infer`, código MIT, pesos de 667 MB em `data/models/`, **licença dos pesos desconhecida**: só teste/uso pessoal até resolver). Na placa de vídeo leva minutos; no PC sem placa, horas. "Refazer com separação máxima" no menu da música |
 | `basicpitch/` | Basic Pitch (Spotify, Apache 2.0), só o modelo ONNX de 230 KB e a decodificação de notas adaptada (sem TensorFlow). ~5 s por parte da música no PC do usuário |
-| `violao.py` | Violão nota por nota: Basic Pitch na parte "guitar" → ataques (notas juntas até 45 ms viram acorde) → corda e casa por Viterbi (forma confortável, mão andando pouco) → MusicXML com pauta (clave de sol com 8) + **tablatura** de 6 cordas e cifras em cima (`score_violao.musicxml`) |
+| `violao.py` | **Instrumentos** nota por nota (`INSTRUMENTS`: violão, cavaco D-G-B-D, baixo 4 cordas, teclado): Basic Pitch na parte de cada um (cavaco vem de "other", só a região dele) → ataques (notas juntas até 45 ms viram acorde; baixo: uma nota e sem o harmônico da oitava de cima, `_drop_octave_ghosts`) → corda e casa por Viterbi → MusicXML com pauta + **tablatura** (violão, cavaco, baixo em clave de fá 8vb) ou pauta dupla (teclado, sem tablatura), cifras em cima (`score_<instrumento>.musicxml`) |
+| `cifra.py` | Cifra no jeito brasileiro: `parse_symbol` (D6(9), G7M(5-), A7(4/9), A7+, E79, C#m5-/7...), as partes do modelo de acordes (`lvcr_parts`) e os acordes de um texto de cifra colado (`parse_text`; rótulos como "[Intro]" e "(2x)" funcionam; a letra é ignorada e **nunca guardada**) |
+| `celular.py` | Abrir no celular: IP da rede, **chave de acesso** (`chave_celular` no config.json), link e QR code (pacote `segno`) |
+| `tunel.py` | Acesso de fora de casa: túnel **Cloudflare** (quick tunnel, `data/bin/cloudflared.exe`) ou, sem ele, SSH + localhost.run (lento). Roda num processo à parte (aberto pelo `Start-Process` do PowerShell) e **sobrevive a reinícios do servidor** com o mesmo link (estado em `data/bin/tunel.json`); um vigia reabre se cair. Desliga só pelo botão do app |
 | `lyrics.py` | Letra: faster-whisper (`PAUTA_WHISPER_MODEL`, padrão `small`) na voz separada; `align_text` encaixa letra colada; `align_synced` encaixa letra com tempo por linha (LRC) achando o atraso e espalhando as sílabas pelas notas cantadas; `words_on_notes` põe as palavras embaixo das notas |
 | `lyrics_api.py` | Letra pela base aberta **LRCLIB** (sem chave; muitas com tempo por linha). Adivinha artista e música pelo nome do arquivo e escolhe a versão de duração mais parecida |
 | `notation.py` | MusicXML compasso a compasso, voz única: barras de ritmo nos compassos sem melodia, notas e pausas cortadas nas trocas de acorde, pausas agrupadas, ligaduras; MIDI com melodia e acordes |
@@ -164,9 +167,67 @@ Pronto e testado:
 - Mesa de samba: violão clássico em pé na ponta da mesa (o deitado parecia "tábua"); sem cerveja e sem garrafa
   (o usuário não gostou). Ícones de cada instrumento na mesa de som.
 - Separação: o analisador da mesa mostra que o baixo do modo rápido (Demucs) quase não tem som acima de ~300 Hz (fica "abafado"); o modo Máxima (BS-RoFormer) é a solução, no notebook com placa NVIDIA.
+- **17/10/2026, notebook (RTX 4050, 6 GB)**: a instalação pelo `iniciar.bat` (zip do GitHub, pasta `soundStudy-main`) terminou certa (PyTorch cu124, cuDNN, requirements), mas o servidor caía ao abrir: `data/songs` fica fora do Git e o `server.py` montava `/files` numa pasta que não existia. Corrigido: o servidor cria a pasta antes de montar. Testado: app abre, engrenagem mostra a placa, plano automático = separação máxima + letra `large-v3` na placa. Segundo erro na primeira música: `PermissionError` (Acesso negado) ao trocar `meta.tmp` por `meta.json`; no Windows o `os.replace` falha se outro estiver lendo o arquivo (a tela de progresso lê a toda hora, o antivírus também). Corrigido: `_replace` no `pipeline.py` tenta de novo por até ~2 s. **Essas correções foram feitas no notebook, sem Git: levar para o PC de desenvolvimento e dar commit.**
+  Terceiro erro: o pacote da separação máxima imprime emoji e a saída do Python fora do console era cp1252 (caía
+  na rápida sem avisar). Corrigido: `server.py` põe a saída em UTF-8 e o `iniciar.bat` liga `PYTHONUTF8=1`.
+
+## Estado atual (17/10/2026, notebook)
+
+**Tudo abaixo foi feito no notebook, que não tem Git: levar a pasta para o PC de desenvolvimento e dar commit.**
+
+- **Acordes como na cifra.** O modelo quase nunca ouve 6, 9, 11, 13. Agora o detalhado decide a sétima e as
+  extensões pelas **notas que violão, teclado e cavaco tocam** (Basic Pitch), somadas em todos os trechos do mesmo
+  acorde (`refine_with_notes`, limites por tipo em `EXT_MIN`, uma nona e uma décima terceira só). Baixo fora do
+  acorde com as notas formando acorde em cima dele: o acorde é o do baixo (A/G → G(9/♯11)). Grafia pela função no
+  tom (`spell`: B♭ em Ré maior, não A♯). Nome brasileiro (`name_chord`: D6(9), G7M(♯11), A7(4/9), D9 = com nona sem
+  sétima). Partitura e instrumentos levam o tipo + graus (`xml_harmony`/`XML_FORM`) e a tela dá a cada combinação o
+  nome da análise (`extendedChordNames` no `app.js`).
+- **Prova** (`tools/avaliar_cifras.py`, nível novo "completo" = nota por nota): Estonteante completo 19% → 39%;
+  Um vencedor raiz 82%, completo 25% (a cifra dele é simplificada: a gravação toca D7M(9) onde ela diz D; o
+  simples continua sem extensões). Gabaritos: Estonteante (completo) e Um vencedor (trecho), só acordes.
+- **Usar a cifra** (menu ⋯ → "Usar a cifra (acordes)"): a pessoa cola a cifra e o app usa **exatamente** aqueles
+  acordes, na ordem, encaixados no tempo (`align_cifra`: anda pela cifra posição por posição, pula/volta com custo,
+  troca onde o áudio troca; acordes da cifra pontuados pelo modelo + notas tocadas). Guarda só os nomes
+  (`work/cifra_user.json`). Na Estonteante: completo 94% e tempo certo onde a gravação bate com a cifra. Onde a
+  gravação toca outro acorde (C7(9) no lugar do A7(4/9), F° no lugar do B7), o da cifra fica no lugar dele.
+- **Instrumentos:** botões Violão, Baixo, Cavaco e Teclado na partitura (só aparecem se o instrumento toca).
+- **Celular:** tela própria até 700 px (biblioteca em gaveta, instrumentos numa faixa que rola, barra de tocar
+  compacta, ícone e manifesto para a tela inicial). O PC continua processando.
+  - **Wi-Fi de casa:** engrenagem → "Abrir no celular" (QR code). Servidor em `0.0.0.0`; quem não é o PC precisa da
+    chave (`?k=` no link → cookie). "Local" = vem do 127.0.0.1 **e** com Host local e sem cabeçalho de repasse
+    (pelo túnel tudo chega pelo 127.0.0.1).
+  - **Fora de casa:** na mesma janela, "Ligar acesso pela internet" (túnel Cloudflare, ~7,8 MB/s; o endereço muda a
+    cada vez que liga). O localhost.run (SSH) fica de reserva, mas dá ~50 KB/s.
+- Revisão independente do código (22 agentes, 16 achados confirmados, todos corrigidos): rótulos "[Intro]" na
+  cifra, 7(♯5)/7M(♯5)/7(2)/7M(4)/E5 perdendo notas, 7(4) virando "4", 5- guardado como ♯11, Am(7+)/C7(-9), faixa do
+  teclado e do cavaco, salvar a cifra trocando de música.
+- Para teste/uso pessoal: as letras da base LRCLIB e as capas do iTunes continuam pendentes de licença para vender.
+- **Desenho de cada instrumento** (`web/chords.js`): nos níveis Violão/Baixo/Cavaco/Teclado, "Acorde agora",
+  "Próximo", palco e o cartão "Como tocar" mostram o instrumento escolhido. Braço com cabeça e tarraxas (6 no
+  violão, 4 no cavaco, 4 grandes no baixo), nome da nota de cada corda, número da casa e dedos numerados; baixo
+  com a caixa de notas (nome na bolinha); teclado com teclas de verdade, faixas "mão esquerda/direita", Dó
+  central e nomes na grafia do tom. Formas calculadas pela afinação (`searchFrets`, com cache), também para
+  acordes de violão sem forma pronta (D6(9), 7(2), E5). No celular o cartão vai para baixo de "Tocando agora".
+- **Tempo da voz × partitura e letra** (investigação com agentes e verificação independente, 3 músicas):
+  - melodia: confiança mínima do pYIN 0,25 → 0,10; na mesma casa fica o instante do 1º ataque; começo de frase
+    recua até 0,15 s se a voz já está na nota (`extend_phrase_starts`). Canto sem nota: 20/36/32% → 13/20/22%;
+  - letra: atraso da LRC pelas respirações (`lrc_offset`, busca limitada pela duração); linha começa na
+    respiração e vai até a próxima; Whisper roda sempre e o início da palavra é puxado para a nota
+    (`snap_words`); análise e "refazer letra" usam os mesmos trechos (`voice_events`). Não Vou Entregar: letra
+    estava 3,2 s fora (uma frase), agora +0,35 s; palavras no início de nota 72/21/80% → 94/85/96%;
+  - player: áudio suspenso no celular pausa de verdade (cursor não corre sozinho); rolar com o dedo pausa o
+    acompanhamento por 3 s.
+  - Ficou de fora (medido, efeito pequeno ou arriscado): grade dos tempos ~30 ms atrasada; dividir nota em
+    sílabas da mesma altura; coro.
+- **Mesa de som no celular** (o usuário reprovou os faders verticais em miniatura): no celular a mesa vira uma
+  **lista de instrumentos** (`#cxPhone`, rola para baixo): ícone e nome grandes, volume **deitado** com o
+  deslizante do próprio celular (bolinha de 34 px, mesma escala em dB dos faders), Mudo/Solo de 46 px e o
+  "Volume geral" com o limitador. Os faders da mesa de estúdio continuam no computador (a coluna inteira do
+  fader pega o arrasto). Equalizador em uma coluna no celular.
 
 Próximos passos (nesta ordem):
-1. **Gabarito com 10 a 15 músicas** (o usuário manda MP3 + cifra do Cifra Club; guardar só os acordes, mais compasso e BPM). Só com isso dá para melhorar acordes e compasso sem remendo.
+0. **Levar o código do notebook para o Git** (commit e push do que foi feito em 17/10/2026).
+1. **Gabarito com 10 a 15 músicas** (o usuário manda MP3 + cifra do Cifra Club; guardar só os acordes, mais compasso e BPM). Só com isso dá para melhorar acordes e compasso sem remendo. Marcar no gabarito se a cifra é simplificada ou completa (a prova "completo" só vale para as completas). "Não Vou Entregar" (Belo) está no app sem cifra: o usuário toca e vai conferir de ouvido.
 2. Compasso: tornar `estimate_meter` estável e medir contra o gabarito; acordes que trocam no meio do tempo quando o tempo é lento.
 3. Baixo: usar o baixo transcrito para inversões que a gravação mostra (validar no gabarito).
 4. Testar no notebook com placa de vídeo (separação máxima, letra `large-v3`) e o instalador numa máquina limpa.

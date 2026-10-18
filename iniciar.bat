@@ -3,6 +3,7 @@ setlocal
 cd /d "%~dp0"
 title soundStudy
 set "HF_HUB_DISABLE_SYMLINKS_WARNING=1"
+set "PYTHONUTF8=1"
 set "LOG=%~dp0instalacao.log"
 
 rem Se o soundStudy ja estiver aberto, so abre o navegador.
@@ -74,7 +75,10 @@ echo.
 echo    soundStudy rodando em http://127.0.0.1:8765
 echo    Deixe esta janela aberta enquanto usa. Para fechar, feche esta janela.
 echo.
-".venv\Scripts\python.exe" -m uvicorn app.server:app --host 127.0.0.1 --port 8765 --log-level warning
+rem Escuta tambem na rede de casa (0.0.0.0): o celular abre o app pelo Wi-Fi com a chave do QR code
+rem (engrenagem, Abrir no celular). Sem a chave, outro aparelho nao entra.
+rem Na primeira vez o Windows pode perguntar se libera o Python na rede: clique em Permitir.
+".venv\Scripts\python.exe" -m uvicorn app.server:app --host 0.0.0.0 --port 8765 --log-level warning
 goto :eof
 
 :semPython

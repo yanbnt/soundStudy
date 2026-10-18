@@ -2,7 +2,14 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="soundStudy">
+<link rel="manifest" href="/static/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/static/icon-192.png">
 <title>soundStudy</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='10' fill='white'/%3E%3Cg fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round'%3E%3Cpath id='w' d='M5 0H14C16 0 17.2 1.1 18.7 1.1S22.6-2.6 25.4-2.6 29.6 3.5 32.5 3.5 35.2 1 36 0' transform='translate(0 11)'/%3E%3Cpath d='M5 0H14C16 0 17.2 1.1 18.7 1.1S22.6-2.6 25.4-2.6 29.6 3.5 32.5 3.5 35.2 1 36 0' transform='translate(0 15.5)'/%3E%3Cpath d='M5 0H14C16 0 17.2 1.1 18.7 1.1S22.6-2.6 25.4-2.6 29.6 3.5 32.5 3.5 35.2 1 36 0' transform='translate(0 20)'/%3E%3Cpath d='M5 0H14C16 0 17.2 1.1 18.7 1.1S22.6-2.6 25.4-2.6 29.6 3.5 32.5 3.5 35.2 1 36 0' transform='translate(0 24.5)'/%3E%3Cpath d='M5 0H14C16 0 17.2 1.1 18.7 1.1S22.6-2.6 25.4-2.6 29.6 3.5 32.5 3.5 35.2 1 36 0' transform='translate(0 29)'/%3E%3Cpath d='M13.15 21.3V6.5'/%3E%3C/g%3E%3Cellipse cx='9.6' cy='22.25' rx='3.8' ry='2.75' transform='rotate(-22 9.6 22.25)'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="/static/style.css">
@@ -72,6 +79,7 @@
       <span class="logo-word"><span class="logo-name">sound<i>Study</i></span></span>
     </a>
     <div class="tb-center">
+      <button class="home-btn only-phone" id="btnLib" aria-label="Minhas músicas" title="Minhas músicas" aria-expanded="false"><svg class="i"><use href="#i-library"/></svg></button>
       <button class="home-btn" id="btnHome" aria-label="Início" title="Início"><svg class="i"><use href="#i-home"/></svg></button>
       <label class="search">
         <svg class="i"><use href="#i-search"/></svg>
@@ -88,9 +96,11 @@
           <button data-q="maxima"><b>Máxima</b><span>Melhor separação de violão e teclado; pesada sem placa de vídeo</span></button>
           <hr>
           <p class="q-info" id="qualityInfo">Verificando a máquina…</p>
+          <hr>
+          <button id="btnPhone" class="only-pc"><b>Abrir no celular</b><span>Use pelo Wi-Fi de casa; o computador faz o trabalho pesado</span></button>
         </div>
       </div>
-      <button class="pill-white" id="btnUpload"><svg class="i"><use href="#i-plus"/></svg>Nova música</button>
+      <button class="pill-white" id="btnUpload" aria-label="Nova música"><svg class="i"><use href="#i-plus"/></svg><span class="lbl">Nova música</span></button>
     </div>
     <input type="file" id="fileInput" accept="audio/*,.mp3,.wav,.m4a,.aac,.flac,.ogg,.opus,.wma,.webm,.mp4" hidden>
   </header>
@@ -229,12 +239,15 @@
           <button class="play-btn xl" id="bigPlay" aria-label="Tocar">
             <svg class="i i-play"><use href="#i-play"/></svg><svg class="i i-pause"><use href="#i-pause"/></svg>
           </button>
-          <button class="pill-show" id="btnShow" title="Partitura gigante com um show ao vivo no fundo"><svg class="i"><use href="#i-spot"/></svg>Modo Show</button>
+          <button class="pill-show" id="btnShow" title="Partitura gigante com um show ao vivo no fundo" aria-label="Modo Show"><svg class="i"><use href="#i-spot"/></svg><span class="lbl">Modo Show</span></button>
           <button class="icon-btn lg" id="btnStage" title="Modo palco: acorde gigante para tocar junto" aria-label="Modo palco"><svg class="i"><use href="#i-stage"/></svg></button>
           <div class="chips" id="levelSeg" role="group" aria-label="Nível da partitura">
             <button class="chip on" data-level="simples" title="Menos trocas de acorde e ritmo mais fácil de ler">Simples</button>
             <button class="chip" data-level="detalhado" title="Todas as trocas de acorde e o ritmo completo">Detalhada</button>
             <button class="chip" data-level="violao" title="O que o violão toca, nota por nota, com tablatura">Violão</button>
+            <button class="chip" data-level="baixo" title="O que o baixo toca, nota por nota">Baixo</button>
+            <button class="chip" data-level="cavaco" title="O que o cavaquinho toca, nota por nota">Cavaco</button>
+            <button class="chip" data-level="teclado" title="O que o teclado toca, nas duas mãos">Teclado</button>
           </div>
           <span class="spacer"></span>
           <div class="zoom" role="group" aria-label="Zoom da partitura">
@@ -248,6 +261,7 @@
               <a id="dlXml" download>Baixar partitura (MusicXML)</a>
               <a id="dlMid" download>Baixar MIDI</a>
               <button id="btnRename">Renomear</button>
+              <button id="btnCifraMenu">Usar a cifra (acordes)</button>
               <button id="btnLyricsMenu">Corrigir a letra</button>
               <button id="btnReanalyze">Refazer análise</button>
               <button id="btnReMax">Refazer com separação máxima</button>
@@ -512,6 +526,42 @@
     <div class="row lyr-more">
       <button class="link-btn" id="lyricsRecog">Reconhecer a voz de novo, com o modelo grande</button>
       <button class="link-btn" id="lyricsAuto" hidden>Desfazer a letra colada</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="phoneModal" hidden>
+  <div class="modal-card phone-card" role="dialog" aria-modal="true" aria-labelledby="phoneTitle">
+    <h2 id="phoneTitle">Abrir no celular</h2>
+    <p>Com o celular no <b>mesmo Wi-Fi</b> deste computador, aponte a câmera para o código. O computador continua fazendo a separação e a análise; o celular só mostra e toca.</p>
+    <div class="phone-qr" id="phoneQr"></div>
+    <div class="phone-url"><span>Ou digite no navegador do celular:</span><b id="phoneUrl">…</b></div>
+    <p class="note" id="phoneHint"></p>
+    <div class="phone-remote">
+      <h3>Fora de casa</h3>
+      <p>Liga um túnel seguro pela internet (Cloudflare). Só entra quem tiver este link com a chave. O endereço muda cada vez que o túnel liga; desligue quando não estiver usando.</p>
+      <button class="pill-white sm" id="tunelBtn">Ligar acesso pela internet</button>
+      <div class="phone-qr" id="tunelQr"></div>
+      <div class="phone-url" id="tunelBox" hidden><span>Link de fora de casa:</span><b id="tunelUrl"></b></div>
+    </div>
+    <div class="row">
+      <button class="pill-outline" id="phoneClose">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="cifraModal" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="cifraTitle">
+    <h2 id="cifraTitle">Acordes da cifra</h2>
+    <p>Copie a cifra inteira (do Cifra Club, por exemplo) e toque em <b>Colar e encaixar</b>. O soundStudy usa exatamente os acordes dela, na ordem dela, e encaixa cada um no tempo da gravação. A letra que vier junto é ignorada.</p>
+    <textarea id="cifraText" spellcheck="false" placeholder="Ou cole a cifra aqui"></textarea>
+    <div class="row">
+      <button class="pill-accent" id="cifraPaste">Colar e encaixar</button>
+      <button class="pill-outline" id="cifraSave">Encaixar o texto acima</button>
+      <button class="pill-outline" id="cifraCancel">Cancelar</button>
+    </div>
+    <div class="row lyr-more">
+      <button class="link-btn" id="cifraAuto" hidden>Voltar aos acordes que o soundStudy ouviu</button>
     </div>
   </div>
 </div>

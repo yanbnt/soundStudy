@@ -5,7 +5,10 @@ Um "tempo" da análise vira uma semínima em 4/4 ou uma semínima pontuada em 12
 from music21 import (chord as m21chord, clef, duration, harmony, key as m21key, metadata, meter,
                      note, pitch, stream, tempo, tie)
 
-from .analysis import CHORD_TYPES, pc_name
+from .analysis import chord_intervals, pc_name, xml_harmony
+
+# nome do tipo no music21 quando é diferente do MusicXML
+M21_KIND = {"dominant": "dominant-seventh"}
 
 
 def _m21_name(name):
@@ -59,11 +62,20 @@ def _header(part, key, bpm, beat_ql):
 
 
 def _chord_symbol(c, flats):
-    return harmony.ChordSymbol(
-        root=_m21_name(pc_name(c["root"], flats)),
-        kind=CHORD_TYPES[c["kind"]][2],
-        bass=_m21_name(pc_name(c["bass"], flats)) if c["bass"] is not None else None,
-    )
+    """Cifra da partitura: raiz e baixo escritos pela função no tom (B♭, não A♯) e as extensões
+    (6, 9, 11, 13) como graus acrescentados; a tela dá a cada combinação o nome brasileiro."""
+    root = c.get("root_name") or pc_name(c["root"], flats)
+    bass = c.get("bass_name") or (pc_name(c["bass"], flats) if c["bass"] is not None else None)
+    xkind, degrees = xml_harmony(c)
+    cs = harmony.ChordSymbol(root=_m21_name(root), kind=M21_KIND.get(xkind, xkind),
+                             bass=_m21_name(bass) if bass else None)
+    for value, alter, mod in degrees:
+        step = harmony.ChordStepModification(mod, value, alter or None)
+        try:
+            cs.addChordStepModification(step, updatePitches=False)
+        except TypeError:  # music21 antigo, sem updatePitches
+            cs.addChordStepModification(step)
+    return cs
 
 
 def write_score(path, title, key, bpm, n_beats, chords, notes, subdiv, shift, beat_ql=1.0,
@@ -184,9 +196,8 @@ def write_midi(path, key, bpm, n_beats, chords, notes, subdiv, beat_ql=1.0):
         if c["kind"] == "N":
             harm.insert(at, note.Rest(quarterLength=dur))
             continue
-        ints = CHORD_TYPES[c["kind"]][0]
         root = 48 + c["root"]
-        notes_ = [root + i for i in ints]
+        notes_ = [root + i for i in chord_intervals(c)]
         if c["bass"] is not None:
             notes_.insert(0, 36 + c["bass"])
         ch = m21chord.Chord([_pitch(m, flats) for m in notes_])

@@ -1,0 +1,15 @@
+{
+  "titulo": "Reinaldo - Um vencedor",
+  "fonte": "Cifra enviada pelo usuário em 17/10/2026 (trecho: do começo até o primeiro refrão); só os acordes, na ordem",
+  "tom": "Lá maior",
+  "trecho": true,
+  "acordes": [
+    "A7+", "A6", "Em", "A7", "D", "F#m", "Bm", "E7", "A7+",
+    "A6", "Em", "A7", "D", "F#m", "Bm", "E7", "A7+",
+    "A6", "Em", "A7",
+    "D", "E79", "E7", "C#m", "Em", "A7",
+    "D", "E79", "E7", "A", "Em7", "A7",
+    "D", "E79", "E7", "C#m", "C#m5-/7", "F#7",
+    "Bm", "Bm7", "E7", "A7+", "Em", "A7"
+  ]
+}

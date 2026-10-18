@@ -31,6 +31,23 @@ def load():
 def save(**changes):
     data = load()
     data.update({k: v for k, v in changes.items() if k in DEFAULTS})
+    write_raw(**data)
+    return data
+
+
+def read_raw():
+    """O config.json inteiro, com campos de outras partes do app (a chave do celular, por exemplo)."""
+    try:
+        data = json.loads(CONFIG.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def write_raw(**fields):
+    """Grava esses campos sem apagar os outros que já estão no arquivo."""
+    data = read_raw()
+    data.update(fields)
     CONFIG.parent.mkdir(parents=True, exist_ok=True)
     CONFIG.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
     return data

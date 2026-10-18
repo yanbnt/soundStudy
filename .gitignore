@@ -26,3 +26,6 @@ instalacao.log
 .idea/
 Thumbs.db
 desktop.ini
+
+# Programas baixados no primeiro uso (ex.: cloudflared do túnel)
+data/bin/
