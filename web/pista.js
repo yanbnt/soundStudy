@@ -1,13 +1,13 @@
 // Pista do braço: o desenho de cada acorde (a formação, com a pestana e tudo, a mesma do cartão "Como
 // tocar": shapeFor no chords.js) deitado no braço do instrumento, como ele é de verdade. Embaixo fica o braço
 // real (casas com o espaçamento de verdade, nome das cordas; a corda mais grave em cima, como o braço visto
-// por quem toca). Os acordes que vêm descem na vertical, em velocidade constante, cada um num braço do mesmo
-// tamanho e com as casas alinhadas (desenho vazado), e na hora de tocar descem para dentro do braço de
-// verdade; aí o desenho fica cheio, na cor da música, enquanto soa. Acorde que não cabe nas casas à vista
-// desce com as casas dele ("5ª").
+// por quem toca). As bolinhas dos acordes que vêm entram pela direita do braço e andam para a esquerda, em
+// velocidade constante, até chegar na casa certa exatamente na hora de tocar; aí ficam na cor da música
+// enquanto o acorde soa.
 // Histórico: nota por nota com número (reprovado: "muita coisa"), cartão com diagrama ("quadrado grande"),
 // faixas de corda com bolinhas no jeito do Guitar Hero ("não precisa imitar; quero o desenho no braço"),
-// braços pequenos crescendo em perspectiva ("nada desse efeito de zoom; quero andando na vertical").
+// braços pequenos crescendo em perspectiva ("nada de zoom") e descendo de cima ("nada de cima para baixo;
+// as notas vêm chegando da direita para a esquerda"). Casas estreitas: 12 à vista (9 no celular).
 // - Em pé (orient 'v', Modo Show): com o jogo valendo pontos, os indicadores em cima (pontos, multiplicador,
 //   sequência, plateia e o retorno "Perfeito!/Errou"); o acerto do microfone (game.js confere cada tempo
 //   contra o acorde) solta raios do desenho daquele acorde.
@@ -194,12 +194,11 @@
       requestAnimationFrame(this.loop);
     }
 
-    // altura que a pista deitada precisa (CSS px): o braço (ou teclado) e, em cima, lugar para o próximo
-    // acorde descer (do mesmo tamanho do braço)
+    // altura que a pista deitada precisa (CSS px): o nome do acorde, o braço (ou teclado) e as casas embaixo
     static flatHeight(narrow, inst) {
       const cfg = STRINGS[inst];
-      const board = cfg ? cfg.names.length * (narrow ? 14 : 15) : (narrow ? 50 : 66);
-      return Math.round(board * 2 + 70);
+      const board = cfg ? cfg.names.length * (narrow ? 20 : 24) : (narrow ? 56 : 72);
+      return Math.round(board + 66);
     }
 
     draw(now, st) {
@@ -251,7 +250,7 @@
       const ctx = this.ctx, W = this.W, H = this.H;
       const keys = st.inst === 'teclado';
       const cfg = STRINGS[st.inst] || STRINGS.violao, n = cfg.names.length;
-      const col = st.color || WHITE, ink = inkOn(col);
+      const col = st.color || WHITE;
       // compacto pela largura e também pela altura (celular deitado)
       const narrow = W < 640 || (!compact && H < 420);
       const { b, ahead } = st, chords = st.chords || [];
@@ -271,27 +270,23 @@
       const nameSize = compact ? (narrow ? 15 : 17) : narrow ? 20 : 30;
       const padX = compact ? 4 : narrow ? 10 : 28;
       const numH = keys ? 6 : compact ? 14 : narrow ? 16 : 20; // números das casas embaixo do braço
-      const room = Math.max(30, H - top - nameSize - 10 - numH);
-      // os que vêm têm o mesmo tamanho do braço (sem zoom): o braço fica baixo para caberem uns em cima
+      const labelH = Math.round(nameSize * 0.7) + 6; // nome dos acordes que vêm, em cima do braço
+      const room = Math.max(30, H - top - nameSize - 8 - labelH - numH);
+      // o braço ocupa o quadro (nada desce de cima: as bolinhas vêm pela direita, dentro dele)
       const boardH = keys
-        ? clamp((W - 2 * padX) * 0.1, Math.min(36, room * 0.4), room * 0.4)
-        : Math.min(room * (compact ? 0.48 : 0.42), Math.max(40, n * (compact ? (narrow ? 14 : 15) : narrow ? 18 : 22)));
+        ? clamp((W - 2 * padX) * 0.12, Math.min(40, room), room)
+        : Math.min(room, Math.max(40, n * (compact ? (narrow ? 20 : 24) : narrow ? 30 : 40)));
       // à esquerda do braço: o nome das cordas e, antes da pestana do braço, os anéis (solta) e × (não toca)
       const rEst = clamp((boardH / n) * 0.4, 3, 17);
       const labelW = keys ? 0 : (compact ? (narrow ? 24 : 30) : narrow ? 30 : 40) + rEst * 1.9 + 6;
       const nx0 = padX + labelW, nx1 = W - padX;
       const ny1 = H - numH - 2, ny0 = ny1 - boardH;
       const nameY = top + 2;
-      const zoneTop = top + nameSize + 8; // de onde os acordes chegam (descendo)
-      const labelH = Math.round(nameSize * 0.7) + 6, gapY = 6;
-      const frameH = boardH + labelH + gapY;
-      const frames = ny0 - zoneTop >= frameH * 0.6; // sem espaço (tela baixa), só o nome do próximo
-      // braço de um acorde que vem: o mesmo braço (mesmo tamanho, casas alinhadas), só deslocado para cima
-      const T = (k, bottom) => (x, y) => [x, bottom - (ny1 - y)];
+      const T = () => (x, y) => [x, y]; // o braço de verdade, sem deslocamento
 
       // geometria do braço (ou do teclado) em coordenadas do braço de verdade
       let geo;
-      const count = narrow ? 5 : 7;
+      const count = narrow ? 9 : 12; // casas à vista: mais casas, cada uma mais estreita (estava comprido)
       const stringGeo = (fs) => {
         const F0 = fs - 1, F1 = F0 + count, p0 = fretPos(F0), p1 = fretPos(F1);
         const fx = (F) => nx0 + ((fretPos(F) - p0) / (p1 - p0)) * (nx1 - nx0);
@@ -325,54 +320,39 @@
       };
 
       // o braço de verdade
-      this.boardBase(geo, T(1, ny1), 1, true, cfg, n, col, cur, compact, narrow, nx0, nx1, ny0, ny1);
+      this.boardBase(geo, T(), 1, true, cfg, n, col, cur, compact, narrow, nx0, nx1, ny0, ny1);
 
-      // Os acordes que vêm descem na vertical, em velocidade constante, do mesmo tamanho do braço e com as
-      // casas alinhadas; no último quarto de tempo descem para dentro do braço. Muito juntos, um espera em
-      // cima do outro (nunca se cobrem).
-      if (frames) {
-        // velocidade: dá para ver uns 4 a 6 tempos à frente (juntos demais, um espera em cima do outro)
-        const pxb = Math.max(frameH / 4, (ny0 - zoneTop) / 6), LANDB = 0.25;
-        ctx.save();
-        ctx.beginPath();
-        ctx.rect(0, zoneTop, W, ny1 - zoneTop + 1);
-        ctx.clip();
-        ctx.fillStyle = 'rgba(0,0,0,.35)'; // a faixa por onde eles descem
-        ctx.fillRect(nx0, zoneTop, nx1 - nx0, ny0 - zoneTop);
-        const placed = [];
-        let limit = ny0 - gapY;
-        for (const c of coming) {
-          const d = c.start_beat - b;
-          let bottom;
-          if (d > LANDB) {
-            bottom = Math.min(ny0 - gapY - (d - LANDB) * pxb, limit);
-            if (bottom < zoneTop) break; // ainda acima da faixa
-          } else {
-            bottom = ny0 - gapY + (ny1 - ny0 + gapY) * (1 - d / LANDB); // entrando no braço
-          }
-          placed.push({ c, bottom });
-          limit = bottom - boardH - labelH - gapY;
-        }
-        for (let j = placed.length - 1; j >= 0; j--) { // do mais longe para o mais perto
-          const { c, bottom } = placed[j];
-          const sh = shapeOf(c, st.inst);
-          if (!sh) continue;
-          const g2 = geoOf(sh), tr = T(1, bottom);
-          this.boardBase(g2, tr, 1, false, cfg, n, col, null, compact, narrow, nx0, nx1, ny0, ny1, 1);
-          this.shape(g2, tr, 1, sh, false, col, 1);
-          ctx.fillStyle = '#fff';
-          ctx.font = `650 ${Math.round(nameSize * 0.7)}px ${SERIF}`;
-          ctx.textAlign = 'left';
-          ctx.textBaseline = 'bottom';
-          ctx.fillText(c.display, nx0, bottom - boardH - 3);
-        }
-        ctx.restore();
+      // Os acordes que vêm entram pela direita do braço e andam para a esquerda, em velocidade constante,
+      // até as bolinhas chegarem na casa certa exatamente na hora de tocar (dois compassos para atravessar o
+      // braço). O nome de cada um vai junto, em cima do braço.
+      const pxb = (nx1 - nx0) / 8;
+      const gutter = keys ? 0 : geo.R * 2.2; // antes da pestana do braço: anéis das cordas soltas
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(nx0 - gutter, ny0 - labelH, nx1 - nx0 + gutter + padX, ny1 - ny0 + labelH + 1);
+      ctx.clip();
+      for (let j = coming.length - 1; j >= 0; j--) { // do mais longe para o mais perto
+        const c = coming[j], dx = (c.start_beat - b) * pxb;
+        if (dx > nx1 - nx0 + 80) continue; // ainda não entrou
+        const sh = shapeOf(c, st.inst);
+        if (!sh) continue;
+        const g2 = geoOf(sh), tr = (x, y) => [x + dx, y];
+        this.shape(g2, tr, 1, sh, false, col, 1, true);
+        // nome do acorde em cima do braço, acima da bolinha mais à esquerda
+        const u = frettedOf(sh);
+        const lx = keys ? nx0 : u.length ? g2.dotX(Math.min(...u)) - g2.R : g2.fx(Math.max(g2.F0, 0)) - g2.R * 1.5;
+        ctx.fillStyle = 'rgba(255,255,255,.9)';
+        ctx.font = `650 ${Math.round(nameSize * 0.7)}px ${SERIF}`;
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText(c.display, lx + dx, ny0 - 3);
       }
+      ctx.restore();
 
       // o acorde de agora no braço, cheio e na cor da música
       if (cur) {
         const sh = shapeOf(cur, st.inst);
-        if (sh) this.shape(geo, T(1, ny1), 1, sh, true, col, 1, ink);
+        if (sh) this.shape(geo, T(), 1, sh, true, col, 1, false);
       }
       // retorno do microfone sobre o acorde conferido (o tempo que acabou: na troca, ainda o anterior)
       if (fl) {
@@ -385,20 +365,13 @@
           ctx.fillRect(nx0, ny0, nx1 - nx0, ny1 - ny0);
         }
       }
-      // nome do acorde de agora, grande; sem espaço para os braços pequenos, o próximo ao lado
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'top';
-      let tx = padX + (compact ? 0 : 4);
+      // nome do acorde de agora, grande
       if (cur) {
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
         ctx.fillStyle = rgba(col, 1);
         ctx.font = `650 ${nameSize}px ${SERIF}`;
-        ctx.fillText(cur.display, tx, nameY);
-        tx += ctx.measureText(cur.display).width + 12;
-      }
-      if (!frames && next) {
-        ctx.fillStyle = 'rgba(255,255,255,.65)';
-        ctx.font = `600 ${Math.round(nameSize * 0.6)}px ${SANS}`;
-        ctx.fillText(`depois ${next.display}`, tx, nameY + nameSize * 0.32);
+        ctx.fillText(cur.display, padX + (compact ? 0 : 4), nameY);
       }
     }
 
@@ -491,11 +464,12 @@
     }
 
     // O desenho do acorde: bolinhas nas casas, pestana, cordas soltas (anel) e que não tocam (×) antes do
-    // braço; no teclado, as teclas. `on` (o de agora): cheio, na cor da música. Os que vêm: vazados, para
-    // nunca se confundirem com o de agora (inclusive sem cor da música).
-    shape(geo, tr, k, sh, on, col, alpha) {
+    // braço; no teclado, as teclas. `on` (o de agora): na cor da música. Os que vêm (`moving`, andando da
+    // direita para a esquerda): bolinhas brancas (cinza sem cor da música, para não confundir com o de
+    // agora), sem os × (que ficam só no de agora).
+    shape(geo, tr, k, sh, on, col, alpha, moving) {
       const ctx = this.ctx;
-      const color = on ? rgba(col, alpha) : `rgba(255,255,255,${(0.95 * alpha).toFixed(3)})`;
+      const color = on ? rgba(col, alpha) : col === WHITE ? `rgba(150,150,150,${alpha.toFixed(3)})` : `rgba(255,255,255,${(0.95 * alpha).toFixed(3)})`;
       if (geo.keys) {
         if (!sh || !sh.keys) return;
         const marked = new Set([...sh.keys.left, ...sh.keys.right]);
@@ -538,9 +512,7 @@
       }
       if (!sh || !sh.frets) return;
       const R = geo.R * k, lw = Math.max(1.3, 2.4 * k);
-      const paint = () => {
-        if (on) { ctx.fillStyle = color; ctx.fill(); } else { ctx.strokeStyle = color; ctx.lineWidth = lw; ctx.stroke(); }
-      };
+      const paint = () => { ctx.fillStyle = color; ctx.fill(); };
       const solo = sh.frets.filter((f) => f !== null).length === 1; // baixo: uma nota só
       if (sh.barre && sh.barre.f - 0.5 >= geo.F0 && sh.barre.f - 0.5 <= geo.F1) {
         const [px, y0] = tr(geo.dotX(sh.barre.f), geo.sy(sh.barre.from));
@@ -551,8 +523,8 @@
       sh.frets.forEach((f, i) => {
         const [, py] = tr(0, geo.sy(i));
         const [nutX] = tr(geo.fx(Math.max(geo.F0, 0)), 0);
-        if (f === null) { // não toca: × antes do braço (no baixo, nada: só a nota)
-          if (solo) return;
+        if (f === null) { // não toca: × antes do braço (no baixo, nada: só a nota; nos que vêm, nada)
+          if (solo || moving) return;
           const s = R * 0.45, cx = nutX - R * 0.95;
           ctx.strokeStyle = `rgba(255,255,255,${(0.5 * alpha).toFixed(3)})`;
           ctx.lineWidth = Math.max(1, 1.8 * k);
@@ -571,7 +543,7 @@
         if (sh.barre && f === sh.barre.f && i >= sh.barre.from && i <= sh.barre.to) return; // já na pestana
         const [px] = tr(geo.dotX(f), 0);
         ctx.beginPath();
-        ctx.arc(px, py, on ? R : R * 0.85, 0, Math.PI * 2);
+        ctx.arc(px, py, R, 0, Math.PI * 2);
         paint();
       });
     }

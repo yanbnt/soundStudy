@@ -68,7 +68,7 @@ Acordes por tempo usam Viterbi com custo de troca por posição no compasso (bar
 | `stage.js` | Cena da roda de samba com músicos em silhuetas; `mono` tira a cor no fim do quadro (uma passada `saturation`) |
 | `mesa.js` | Cena **"mesa de samba"** sem pessoas, em P&B: lua sobre a baía, morros, bondinho, varal de lâmpadas, chapéu, tamborim, pandeiro, cavaquinho, chopp e partitura na mesa. Fundo padrão do Modo Show e da tela inicial |
 | `game.js` | Microfone: modo **acordes** (croma por tempo) e modo **melodia** (YIN, nota por nota) |
-| `pista.js` | **Pista do braço** em canvas (30 quadros): o braço real embaixo e o desenho de cada acorde (com a pestana) descendo na vertical, do mesmo tamanho, até entrar nele na hora de tocar (`drawBoard`, `boardBase`, `shape`); teclado igual; indicadores do jogo e retorno "Perfeito!" (`drawHud`); "Voz" = melodia caindo sobre teclas (`drawVoice`). `orient 'v'` = Modo Show, `'h'` = "Tocando agora". Parada, só redesenha quando algo muda |
+| `pista.js` | **Pista do braço** em canvas (30 quadros): o braço real e as bolinhas de cada acorde (com a pestana) entrando pela direita e andando para a esquerda até a casa certa na hora de tocar (`drawBoard`, `boardBase`, `shape`); teclado igual; indicadores do jogo e retorno "Perfeito!" (`drawHud`); "Voz" = melodia caindo sobre teclas (`drawVoice`). `orient 'v'` = Modo Show, `'h'` = "Tocando agora". Parada, só redesenha quando algo muda |
 | `vendor/` | OpenSheetMusicDisplay 1.9.0 e fontes (Figtree, Fraunces) |
 
 **Modo Show:** a partitura em pedaços de uma linha (`renderSingleHorizontalStaffline` com `drawFrom/UpToMeasureNumber`), colados lado a lado, desliza por baixo de uma linha fixa (tempo → posição x pelas notas de cada pedaço). A cena do palco é desenhada acima da esteira. Há fundo opcional com vídeo ou foto da própria pessoa (dura até fechar o app).
@@ -240,13 +240,14 @@ Pronto e testado:
 - **Pista do braço (Modo Show e "Tocando agora").** O que o usuário quer, depois de reprovar várias versões
   (nota por nota com número: "muita coisa"; cartão com diagrama: "quadrado grande"; faixas de corda no jeito do
   Guitar Hero: "não precisa imitar, quero o desenho no braço"; braços pequenos crescendo em perspectiva: "nada
-  desse efeito de zoom, quero andando na vertical"): **o desenho de cada acorde deitado no braço real, com a
-  pestana, descendo na vertical até a hora de tocar.** Embaixo o braço de verdade (casas com espaçamento real,
-  nome das cordas com a mais grave em cima, soltas = anel e não toca = × antes da pestana do braço, número das
-  casas embaixo); os acordes que vêm descem em velocidade constante, cada um num braço do mesmo tamanho com as
-  casas alinhadas (desenho vazado; muito juntos, um espera em cima do outro) e entram no braço na hora; aí o
-  desenho fica cheio, na cor da música, enquanto soa. Acorde fora das casas à vista desce com as casas dele
-  ("5ª"). Formação = a mesma do cartão "Como tocar" (`shapeFor` no `chords.js`). Teclado: o mesmo com um
+  desse efeito de zoom"; descendo de cima: "nada de cima para baixo, as notas vêm chegando da direita para a
+  esquerda"): **o braço real e as bolinhas de cada acorde (com a pestana) entrando pela direita e andando para
+  a esquerda até a casa certa na hora de tocar.** Braço: 12 casas à vista (9 no celular; "tá muito comprido"),
+  espaçamento real, nome das cordas com a mais grave em cima, soltas = anel e não toca = × antes da pestana do
+  braço (só no acorde de agora), número das casas embaixo. As bolinhas que vêm são brancas (cinza sem cor da
+  música), andam em velocidade constante (dois compassos para atravessar o braço) com o nome do acorde em
+  cima; o acorde de agora fica na cor da música enquanto soa. Acorde fora das casas à vista anda com as casas
+  dele. Formação = a mesma do cartão "Como tocar" (`shapeFor` no `chords.js`). Teclado: o mesmo com um
   teclado. As pistas usam sempre a lista **detalhada** de acordes (no Simples o show mostrava bem menos); o
   microfone confere a lista que está na tela (Pista: detalhada; Partitura: a do nível); a Voz e o jogo de
   melodia no show usam a melodia detalhada.
