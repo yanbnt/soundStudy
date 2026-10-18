@@ -308,6 +308,35 @@ def put_cifra(sid: str, body: dict):
     return _song(sid, full=True)
 
 
+@app.post("/api/songs/{sid}/referencia")
+def post_referencia(sid: str, file: UploadFile = File(...)):
+    """Gravação da pessoa tocando a música: os acordes dela entram no trecho que ela tocou."""
+    from . import referencia as R
+    meta = _song(sid)
+    if meta["status"] != "ready":
+        raise HTTPException(409, "A música ainda está sendo processada.")
+    ext = Path(file.filename or "").suffix.lower()
+    if ext not in AUDIO_EXT:
+        raise HTTPException(400, "Formato não suportado. Use M4A, MP3, WAV, FLAC ou OGG.")
+    work = P.SONGS / sid / "work"
+    dest = work / f"referencia{ext}"
+    with open(dest, "wb") as fh:
+        shutil.copyfileobj(file.file, fh)
+    try:
+        info = R.use_reference(sid, dest)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return {"referencia": info, **_song(sid, full=True)}
+
+
+@app.delete("/api/songs/{sid}/referencia")
+def delete_referencia(sid: str):
+    from . import referencia as R
+    _song(sid)
+    R.forget_reference(sid)
+    return _song(sid, full=True)
+
+
 @app.post("/api/songs/{sid}/lyrics/recognize")
 def recognize_lyrics(sid: str):
     """Ouve a voz de novo com o modelo grande de reconhecimento (refaz a análise; a separação fica)."""

@@ -848,8 +848,12 @@ def _note_match(P, pcs):
     return np.where(P.sum(axis=1) > 0, num / den, 0.0)
 
 
+OFF_CIFRA = -2  # no caminho do encaixe: trecho que não está na cifra (fica o acorde ouvido)
+
+
 def align_cifra(probs, grid, symbols, played=None, changes=None, change_cost=(0.3, 0.9, 0.5, 0.7),
-                skip=6.0, jump=25.0, off_change=2.0, ext_weight=0.3, note_weight=3.0):
+                skip=6.0, jump=25.0, off_change=2.0, ext_weight=0.3, note_weight=3.0,
+                auto=None, off_margin=2.5, off_enter=12.0):
     """Encaixa os acordes da cifra no tempo da gravação.
 
     Cada acorde da cifra (qualquer um: D6(9), G7M(5-), A7(4/9)...) é pontuado em cada tempo pelas
@@ -860,7 +864,13 @@ def align_cifra(probs, grid, symbols, played=None, changes=None, change_cost=(0.
     `changes`: tempos em que o reconhecimento ouviu troca de acorde. Trocar fora deles custa
     `off_change` a mais: quando a gravação toca outro acorde no lugar do da cifra, o acorde da cifra
     ocupa o tempo que aquele acorde ocupa no áudio (e não um tempo só, espremido).
-    Devolve o índice (em `distinct`) de cada tempo, ou -1 para "sem acorde", e a lista `distinct`."""
+    `auto`: os acordes que o reconhecimento ouviu (trechos com start_beat/end_beat/label). Com eles, o
+    encaixe pode dizer "este trecho não está na cifra" (OFF_CIFRA): a introdução antes da cifra colada, uma
+    parte que a cifra não traz, o fim depois dela. Ali vale o acorde ouvido, com uma desvantagem por tempo
+    (`off_margin`, para a cifra simplificada — D no lugar de D7M(9) — continuar valendo) e um custo para
+    sair da cifra no meio (`off_enter`). Sem isso, a cifra era esticada à força: na Um vencedor a cifra
+    começa no verso e o F#m dela cobria os 8 compassos da introdução.
+    Devolve o índice (em `distinct`) de cada tempo, -1 para "sem acorde" ou OFF_CIFRA, e a lista `distinct`."""
     from . import cifra
     from . import lvcr
     distinct, seen = [], {}
@@ -869,9 +879,22 @@ def align_cifra(probs, grid, symbols, played=None, changes=None, change_cost=(0.
         if k not in seen:
             seen[k] = len(distinct)
             distinct.append(s)
+    nd = len(distinct)
+    # os acordes ouvidos entram como colunas a mais, só para pontuar o "fora da cifra"
+    auto_syms, auto_idx = [], {}
+    for a in auto or []:
+        if a.get("kind") != "N" and a.get("label"):
+            k = cifra._norm(a["label"])
+            if k not in auto_idx:
+                try:
+                    cifra.parse_symbol(a["label"])
+                except Exception:  # noqa: BLE001 — nome que a cifra não lê: o trecho fica sem nota
+                    continue
+                auto_idx[k] = nd + len(auto_syms)
+                auto_syms.append(a["label"])
     tri, bass, p7, p9, p11, p13 = [np.log(np.maximum(p, 1e-6)) for p in probs]
     cols, parsed = [], []
-    for s in distinct:
+    for s in distinct + auto_syms:
         ch = cifra.parse_symbol(s)
         parsed.append(ch)
         t, b, s7, s9, s11, s13 = cifra.lvcr_parts(ch)
@@ -899,15 +922,30 @@ def align_cifra(probs, grid, symbols, played=None, changes=None, change_cost=(0.
     # áudio puxa para outro acorde.
     seq = [seen[cifra._norm(s)] for s in cifra.compact(symbols)]
     M = len(seq)
-    START, END = M, M + 1  # "sem acorde" antes da música começar e depois que ela acaba
+    # "sem acorde" antes da música começar e depois que ela acaba; e o trecho fora da cifra
+    START, END, OFF = M, M + 1, M + 2
     SP = S[:, seq]
     SN = S[:, -1]
     NEG = -1e9
-    dp = np.full(M + 2, NEG)
+    SO = np.full(n, NEG)  # fora da cifra: o acorde ouvido naquele tempo, com a desvantagem
+    for a in auto or []:
+        if a.get("kind") == "N" or not a.get("label"):
+            col = K - 1
+        else:
+            col = auto_idx.get(cifra._norm(a["label"]))
+            if col is None:
+                continue
+        lo, hi = max(0, int(a["start_beat"])), min(n, int(a["end_beat"]))
+        if hi > lo:
+            SO[lo:hi] = S[lo:hi, col] - off_margin
+    use_off = auto is not None
+    dp = np.full(M + 3, NEG)
     dp[:M] = SP[0] - jump
     dp[0] = SP[0, 0]
     dp[START] = SN[0]
-    back = np.zeros((n, M + 2), dtype=np.int32)
+    if use_off:
+        dp[OFF] = SO[0]
+    back = np.zeros((n, M + 3), dtype=np.int32)
     ar = np.arange(M)
     changes = set(changes) if changes is not None else None
     for b in range(1, n):
@@ -916,37 +954,57 @@ def align_cifra(probs, grid, symbols, played=None, changes=None, change_cost=(0.
         best_any = int(pos.argmax())
         from_start = np.full(M, dp[START] - pen - jump)
         from_start[0] = dp[START] - pen
+        # depois de um trecho fora da cifra, ela recomeça do começo (a introdução acabou) ou de onde for
+        from_off = np.full(M, dp[OFF] - pen - off_enter)
+        from_off[0] = dp[OFF] - pen
         cands = [
             (pos, ar),                                                        # fica no acorde
             (np.r_[NEG, pos[:-1] - pen], ar - 1),                             # próximo da cifra
             (np.r_[NEG, NEG, pos[:-2] - pen - skip][:M], ar - 2),             # pula um acorde
             (np.full(M, pos[best_any] - pen - jump), np.full(M, best_any)),   # salta de parte
             (from_start, np.full(M, START)),                                  # a música começa
+            (from_off, np.full(M, OFF)),                                      # volta para a cifra
         ]
         vals = np.stack([c[0] for c in cands])
         choice = vals.argmax(axis=0)
-        new = np.full(M + 2, NEG)
+        new = np.full(M + 3, NEG)
         new[:M] = vals.max(axis=0) + SP[b]
         back[b, :M] = np.choose(choice, [c[1] for c in cands])
         new[START] = dp[START] + SN[b]
         back[b, START] = START
-        end_opts = [(dp[END], END), (dp[M - 1] - pen, M - 1), (pos[best_any] - pen - jump, best_any)]
+        end_opts = [(dp[END], END), (dp[M - 1] - pen, M - 1), (pos[best_any] - pen - jump, best_any),
+                    (dp[OFF] - pen, OFF)]
         v, src = max(end_opts)
         new[END] = v + SN[b]
         back[b, END] = src
+        if use_off:
+            off_opts = [(dp[OFF], OFF), (dp[START] - pen, START), (pos[best_any] - pen - off_enter, best_any)]
+            v, src = max(off_opts)
+            new[OFF] = v + SO[b]
+            back[b, OFF] = src
         dp = new
     path = np.zeros(n, dtype=int)
     path[-1] = int(dp.argmax())
     for b in range(n - 1, 0, -1):
         path[b - 1] = back[b, path[b]]
-    return [seq[p] if p < M else -1 for p in path], distinct
+    return [seq[p] if p < M else OFF_CIFRA if p == OFF else -1 for p in path], distinct
 
 
-def cifra_segments(path, distinct, grid, key):
-    """Trechos de acorde (como chord_segments) a partir do encaixe da cifra."""
+def cifra_segments(path, distinct, grid, key, auto=None):
+    """Trechos de acorde (como chord_segments) a partir do encaixe da cifra. Trecho fora da cifra
+    (OFF_CIFRA): os acordes ouvidos (`auto`) recortados nele."""
     segs, start = [], 0
     for i in range(1, len(path) + 1):
         if i == len(path) or path[i] != path[start]:
+            if path[start] == OFF_CIFRA:
+                for a in auto or []:
+                    lo, hi = max(start, a["start_beat"]), min(i, a["end_beat"])
+                    if hi > lo:
+                        seg = dict(a, start_beat=lo, end_beat=hi, start=float(grid[lo]),
+                                   end=float(grid[min(hi, len(grid) - 1)]))
+                        segs.append(seg)
+                start = i
+                continue
             seg = {"start_beat": start, "end_beat": i, "start": float(grid[start]),
                    "end": float(grid[min(i, len(grid) - 1)])}
             if path[start] < 0:

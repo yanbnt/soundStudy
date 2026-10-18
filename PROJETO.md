@@ -256,6 +256,23 @@ Pronto e testado:
     Hero em cima (pontos, multiplicador até x4 com anel, acertos seguidos, medidor da plateia); acerto do
     microfone solta raios do desenho no braço. Na pista o quadro "Agora/Depois/1-2-3-4" some.
   - **"Tocando agora"**: o mesmo braço, mais baixo, no lugar dos quadros "Acorde agora / Próximo".
+- **Pista: cada batida do instrumento.** O usuário: "não é possível que o violão seja só essas notas"
+  (o violão faz ~13 batidas por compasso e a pista mostrava 1 desenho por acorde). Agora cada batida da
+  gravação (as notas transcritas do instrumento) entra pela direita até a casa; a posição de cada nota vem
+  do desenho do acorde daquele momento (`attackPositions`: a nota exata na corda da formação; senão a nota
+  de verdade perto da região do acorde). O desenho do acorde de agora fica apagado, de referência. Só ~1
+  compasso na tela.
+- **Acordes que faltavam (passagens).** Na Um vencedor o F#m ocupava ~8 compassos: a cifra colada começa no
+  verso e o encaixe esticava ela sobre a introdução; e o próprio reconhecimento confundia A7M/A6 com
+  F#m7(11) (quase as mesmas notas). Duas correções:
+  - `align_cifra` ganhou o estado "fora da cifra" (`OFF_CIFRA`): trecho que a cifra não traz fica com o acorde
+    ouvido (desvantagem `off_margin`=2,5 por tempo, para a cifra simplificada continuar valendo).
+  - **Gravação de referência** (`app/referencia.py`, menu ⋯ → "Ensinar os acordes com uma gravação minha",
+    `POST /api/songs/{sid}/referencia`): a pessoa manda um áudio dela tocando (o m4a do celular serve); o app
+    alinha com a harmonia da música (croma + DTW com inclinação entre 1/2 e 2), reconhece os acordes e as notas
+    da gravação dela e usa esses acordes no trecho coberto (`work/referencia.json`; vale para a mesma grade de
+    tempos; reanálise que muda a grade pede para mandar de novo). Aplicado na Um vencedor com a gravação do
+    usuário (tempos 12 a 121): saem o F#m comprido e entram F7M, Dm7, C7M, Am, Bm7(b5), C#m7(b5)...
 - **Revisão independente** (workflow com 37 agentes, 30 achados confirmados, todos tratados menos 1): cartão
   que sumia antes da hora, cartão maior que a pista em tela baixa, sus2 fora do diagrama, teclas marcadas
   invisíveis, pestana passando por corda que não toca (Fmaj7; corrigido em `fingering`, vale para o cartão do

@@ -3541,6 +3541,35 @@
     }
   }
 
+  // ------------------------------------------------------------ acordes de uma gravação da pessoa tocando
+  // A pessoa manda uma gravação dela tocando (o áudio do celular serve): o app alinha com a música e usa os
+  // acordes dela no trecho que ela tocou (app/referencia.py).
+  async function sendReference(file) {
+    const id = S.playerId;
+    if (!file || !id || S.refSending) return;
+    S.refSending = true;
+    toast('Ouvindo a sua gravação e comparando com a música…');
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const r = await fetch(`/api/songs/${id}/referencia`, { method: 'POST', body: fd });
+      const m = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(m.detail || r.statusText);
+      if (S.playerId !== id) return;
+      await applyLyrics(m);
+      renderChordline();
+      forceChordRedraw();
+      tick();
+      const ref = m.referencia || {};
+      toast(`Usei os acordes da sua gravação nos compassos ${Math.floor((ref.de || 0) / 4) + 1} a ${Math.ceil((ref.ate || 0) / 4)}.`);
+    } catch (e) {
+      toast('Não consegui usar a gravação: ' + e.message);
+    } finally {
+      S.refSending = false;
+      $('#refInput').value = '';
+    }
+  }
+
   async function reprocess(id, separacao) {
     try {
       await api(`/api/songs/${id}/reprocess` + (separacao ? `?separacao=${separacao}` : ''), { method: 'POST' });
@@ -3831,6 +3860,8 @@
     $('#phoneClose').onclick = () => { $('#phoneModal').hidden = true; };
     $('#phoneModal').onclick = (e) => { if (e.target === $('#phoneModal')) $('#phoneModal').hidden = true; };
     $('#btnCifraMenu').onclick = openCifraEditor;
+    $('#btnRefMenu').onclick = () => { $('#moreMenu').hidden = true; $('#refInput').click(); };
+    $('#refInput').onchange = (e) => sendReference(e.target.files[0]);
     $('#cifraCancel').onclick = () => { $('#cifraModal').hidden = true; };
     $('#cifraSave').onclick = () => saveCifra($('#cifraText').value);
     $('#cifraAuto').onclick = () => saveCifra('');

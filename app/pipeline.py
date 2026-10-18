@@ -195,6 +195,12 @@ def analyze(sid, d, work, rep, title, duration, lyrics_model=None):
         symbols = json.loads(cifra_file.read_text(encoding="utf-8"))["acordes"]
         simples, det = cifra_chords(work, y, grid, key, chords["detalhado"], symbols)
         chords = {"simples": simples, "detalhado": det}
+    from . import referencia as R
+    ref_an = {"grid": grid, "chords": chords["simples"], "chords_detalhado": chords["detalhado"]}
+    ref_used = R.apply_saved(ref_an, work)  # gravação da pessoa tocando: vale por cima, no trecho dela
+    if ref_used:
+        chords_auto = chords_auto or chords
+        chords = {"simples": ref_an["chords"], "detalhado": ref_an["chords_detalhado"]}
     rep(1)
 
     rep.stage("melody")
@@ -292,7 +298,7 @@ def analyze(sid, d, work, rep, title, duration, lyrics_model=None):
         "chords": chords["simples"],
         "chords_detalhado": chords["detalhado"],
         # de onde vêm os acordes: "auto" (ouvidos pelo app) ou "cifra" (colada pela pessoa)
-        "chords_source": "cifra" if chords_auto else "auto",
+        "chords_source": "referencia" if ref_used else "cifra" if chords_auto else "auto",
         "octave_shift": shift,
         "has_vocals": has_vocals,
         "lyrics": lines,
@@ -369,8 +375,10 @@ def cifra_chords(work, y, grid, key, auto_detalhado, symbols):
     changes = {s["start_beat"] for s in auto_detalhado if s["kind"] != "N"}
     out = []
     for cost in ((0.6, 2.4, 1.0, 1.8), (0.3, 0.9, 0.5, 0.7)):
-        path, distinct = A.align_cifra(probs, grid, symbols, played=played, changes=changes, change_cost=cost)
-        out.append(A.cifra_segments(path, distinct, grid, key))
+        # trecho que não está na cifra (introdução antes dela, parte que ela não traz) fica com o ouvido
+        path, distinct = A.align_cifra(probs, grid, symbols, played=played, changes=changes, change_cost=cost,
+                                       auto=auto_detalhado)
+        out.append(A.cifra_segments(path, distinct, grid, key, auto=auto_detalhado))
     return out[0], out[1]
 
 
@@ -405,6 +413,11 @@ def save_cifra(sid, text):
             f.unlink()
         an["chords"], an["chords_detalhado"] = an.pop("chords_auto"), an.pop("chords_detalhado_auto")
         an["chords_source"] = "auto"
+        if (work / "referencia.json").exists():  # a gravação de referência continua valendo
+            an["chords_auto"], an["chords_detalhado_auto"] = an["chords"], an["chords_detalhado"]
+    from . import referencia as R
+    if R.apply_saved(an, work):  # a gravação da pessoa tocando vale por cima, no trecho dela
+        an["chords_source"] = "referencia"
     rebuild_scores(sid, an, an.get("lyrics") or [])
     return an
 
