@@ -79,6 +79,60 @@
   // casas presas de uma formação (para escolher as casas à vista)
   const frettedOf = (sh) => (sh && sh.frets ? sh.frets.filter((f) => f !== null && f > 0) : []);
 
+  // nota de cada corda solta (MIDI), da mais grave para a mais aguda (a mesma afinação do chords.js)
+  const OPEN = { violao: [40, 45, 50, 55, 59, 64], cavaco: [62, 67, 71, 74], baixo: [28, 33, 38, 43] };
+
+  // Onde cada nota de uma batida do instrumento cai no braço: na formação do acorde daquele momento (a nota
+  // exata na corda da formação); senão a nota de verdade na corda mais perto da região do acorde; senão a
+  // mesma nota (outra oitava) numa corda da formação. Uma bolinha por corda. Cache por batida.
+  const posCache = new WeakMap();
+  function attackPositions(e, chords, inst) {
+    const hit = posCache.get(e);
+    if (hit && hit.chords === chords && hit.inst === inst) return hit.pos;
+    const open = OPEN[inst];
+    let pos = [];
+    if (open) {
+      const c = chordNow(chords, e[0] + 0.01);
+      const fr = c && shapeOf(c, inst) && shapeOf(c, inst).frets;
+      const used = fr ? fr.filter((f) => f !== null && f > 0) : [];
+      const center = used.length ? used.reduce((a, f) => a + f, 0) / used.length : 2;
+      const byString = new Map(); // corda -> [casa, quão boa é a escolha (menor = melhor)]
+      for (const x of e[2]) {
+        const m = x[0];
+        let best = null;
+        const consider = (i, f, score) => { if (f >= 0 && f <= 14 && (!best || score < best[2])) best = [i, f, score]; };
+        if (fr) fr.forEach((f, i) => { if (f !== null && open[i] + f === m) consider(i, f, 0); });
+        open.forEach((o, i) => consider(i, m - o, 1 + Math.abs(m - o - center) * 0.5 + (fr && fr[i] === null ? 0.3 : 0)));
+        if (fr) fr.forEach((f, i) => { if (f !== null && (((open[i] + f - m) % 12) + 12) % 12 === 0) consider(i, f, 3); });
+        if (best && (!byString.has(best[0]) || byString.get(best[0])[1] > best[2])) byString.set(best[0], [best[1], best[2]]);
+      }
+      pos = [...byString].map(([i, v]) => [i, v[0]]);
+    } else { // teclado: a própria tecla
+      pos = e[2].map((x) => [x[0], 0]);
+    }
+    posCache.set(e, { chords, inst, pos });
+    return pos;
+  }
+
+  // sem notas do instrumento na música: uma batida por acorde, com as notas da formação
+  const synthCache = new WeakMap();
+  function chordAttacks(chords, inst) {
+    let m = synthCache.get(chords);
+    if (!m) synthCache.set(chords, (m = new Map()));
+    if (m.has(inst)) return m.get(inst);
+    const ev = [];
+    for (const c of chords) {
+      const sh = shapeOf(c, inst);
+      if (!sh) continue;
+      const open = OPEN[inst];
+      const notes = sh.keys ? [...sh.keys.left, ...sh.keys.right].map((k) => [k, 0, 0])
+        : sh.frets.map((f, i) => (f === null ? null : [open[i] + f, 0, 0])).filter(Boolean);
+      ev.push([c.start_beat, c.end_beat - c.start_beat, notes]);
+    }
+    m.set(inst, ev);
+    return ev;
+  }
+
   // 1ª casa à vista para mostrar as casas `u` em `count` casas (null se não cabem)
   function fitStart(u, count) {
     if (!u.length) return 1;
@@ -322,38 +376,80 @@
       // o braço de verdade
       this.boardBase(geo, T(), 1, true, cfg, n, col, cur, compact, narrow, nx0, nx1, ny0, ny1);
 
-      // Os acordes que vêm entram pela direita do braço e andam para a esquerda, em velocidade constante,
-      // até as bolinhas chegarem na casa certa exatamente na hora de tocar (dois compassos para atravessar o
-      // braço). O nome de cada um vai junto, em cima do braço.
-      const pxb = (nx1 - nx0) / 8;
-      const gutter = keys ? 0 : geo.R * 2.2; // antes da pestana do braço: anéis das cordas soltas
+      // o desenho do acorde de agora, bem apagado: a referência de onde a mão está
+      if (cur) {
+        const sh = shapeOf(cur, st.inst);
+        if (sh) this.shape(geo, T(), 1, sh, true, col, 0.22, false);
+      }
+
+      // Cada batida do instrumento na gravação entra pela direita e anda para a esquerda até a casa certa
+      // exatamente na hora de tocar (um compasso para atravessar o braço: só um compasso na tela); na hora,
+      // as notas acendem na cor da música enquanto soam. O nome de cada acorde novo vai junto, em cima.
+      const V = st.notes && st.notes.length ? st.notes : chordAttacks(chords, st.inst);
+      const pxb = (nx1 - nx0) / (narrow ? 4 : 5);
+      const span = (nx1 - nx0) / pxb;
+      const R = keys ? 0 : geo.R;
+      const nutX = keys ? nx0 : geo.fx(Math.max(geo.F0, 0));
+      // onde fica a nota no braço (sem o deslocamento de quem ainda está chegando)
+      const place = (p) => {
+        if (keys) {
+          const kk = geo.keyX.get(p[0]);
+          return kk ? [kk[0] + kk[1] / 2, ny0 + boardH * (kk[2] ? 0.4 : 0.8), Math.max(3, Math.min(kk[1] * 0.38, 9))] : null;
+        }
+        const [i, f] = p;
+        if (f > 0 && (f - 0.5 < geo.F0 || f - 0.5 > geo.F1)) return null; // fora das casas à vista
+        return [f === 0 ? nutX - R * 0.95 : geo.dotX(f), geo.sy(i), R];
+      };
+      if (!this.longestOf || this.longestFor !== V) {
+        this.longestFor = V;
+        this.longestOf = V.reduce((m, e) => Math.max(m, e[1]), 1);
+      }
+      const gutter = keys ? 0 : R * 2.2; // antes da pestana do braço: as cordas soltas
       ctx.save();
       ctx.beginPath();
       ctx.rect(nx0 - gutter, ny0 - labelH, nx1 - nx0 + gutter + padX, ny1 - ny0 + labelH + 1);
       ctx.clip();
-      for (let j = coming.length - 1; j >= 0; j--) { // do mais longe para o mais perto
-        const c = coming[j], dx = (c.start_beat - b) * pxb;
-        if (dx > nx1 - nx0 + 80) continue; // ainda não entrou
-        const sh = shapeOf(c, st.inst);
-        if (!sh) continue;
-        const g2 = geoOf(sh), tr = (x, y) => [x + dx, y];
-        this.shape(g2, tr, 1, sh, false, col, 1, true);
-        // nome do acorde em cima do braço, acima da bolinha mais à esquerda
-        const u = frettedOf(sh);
-        const lx = keys ? nx0 : u.length ? g2.dotX(Math.min(...u)) - g2.R : g2.fx(Math.max(g2.F0, 0)) - g2.R * 1.5;
-        ctx.fillStyle = 'rgba(255,255,255,.9)';
+      // nome de cada acorde novo, chegando junto com a 1ª batida dele
+      for (const c of coming) {
+        const dx = (c.start_beat - b) * pxb;
+        if (dx > nx1 - nx0) break;
+        ctx.fillStyle = 'rgba(255,255,255,.85)';
         ctx.font = `650 ${Math.round(nameSize * 0.7)}px ${SERIF}`;
         ctx.textAlign = 'left';
         ctx.textBaseline = 'bottom';
-        ctx.fillText(c.display, lx + dx, ny0 - 3);
+        ctx.fillText(c.display, nx0 + dx, ny0 - 3);
+      }
+      const upcoming = [], playing = [];
+      for (let i = firstFrom(V, b, this.longestOf); i < V.length; i++) {
+        const e = V[i];
+        if (e[0] > b + span) break;
+        const on = e[0] <= b && b < e[0] + Math.max(e[1], 0.2);
+        if (on) playing.push(e);
+        else if (e[0] > b) upcoming.push(e);
+      }
+      const coming2 = col === WHITE ? 'rgba(150,150,150,.95)' : 'rgba(255,255,255,.92)';
+      for (let j = upcoming.length - 1; j >= 0; j--) { // do mais longe para o mais perto
+        const e = upcoming[j], dx = (e[0] - b) * pxb;
+        for (const p of attackPositions(e, chords, st.inst)) {
+          const q = place(p);
+          if (!q) continue;
+          ctx.fillStyle = coming2;
+          ctx.beginPath();
+          ctx.arc(q[0] + dx, q[1], q[2] * 0.72, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      ctx.fillStyle = col === WHITE ? '#fff' : rgba(col, 1);
+      for (const e of playing) { // soando agora: na casa, na cor da música
+        for (const p of attackPositions(e, chords, st.inst)) {
+          const q = place(p);
+          if (!q) continue;
+          ctx.beginPath();
+          ctx.arc(q[0], q[1], q[2], 0, Math.PI * 2);
+          ctx.fill();
+        }
       }
       ctx.restore();
-
-      // o acorde de agora no braço, cheio e na cor da música
-      if (cur) {
-        const sh = shapeOf(cur, st.inst);
-        if (sh) this.shape(geo, T(), 1, sh, true, col, 1, false);
-      }
       // retorno do microfone sobre o acorde conferido (o tempo que acabou: na troca, ainda o anterior)
       if (fl) {
         const t = (now - fl.at) / 600;

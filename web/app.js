@@ -1756,7 +1756,11 @@
       $('#trackLabel').textContent = TRACK_LABEL[inst];
       $('#trackCanvas').style.height = Pista.Highway.flatHeight(narrow, inst) + 'px';
     }
-    return { b: beatAt(viewTime()), ahead: aheadBeats(narrow ? 4.2 : 5.5), inst, chords: pistaChords(), color: S.songRgb, flash: null };
+    // notas: cada batida do instrumento na gravação (o desenho do acorde dá a posição no braço)
+    return {
+      b: beatAt(viewTime()), ahead: aheadBeats(narrow ? 4.2 : 5.5), inst, notes: instrumentNotes(inst),
+      chords: pistaChords(), color: S.songRgb, flash: null,
+    };
   }
 
   // Modo Show: pista em pé do instrumento escolhido nos botões em cima dela
@@ -1765,7 +1769,7 @@
     const voice = S.hwInst === 'voz', g = S.game;
     return {
       b: beatAt(viewTime()), ahead: aheadBeats(voice ? 2.6 : narrowScreen() ? 4.5 : 5.5), inst: S.hwInst,
-      notes: voice ? voiceTrack() : null, chords: pistaChords(), color: S.songRgb, flash: S.hwFlash,
+      notes: voice ? voiceTrack() : instrumentNotes(S.hwInst), chords: pistaChords(), color: S.songRgb, flash: S.hwFlash,
       // indicadores do jogo valendo pontos (o microfone confere cada tempo contra o acorde da pista)
       game: S.gameOn ? { score: g.score, combo: g.combo, mult: g.multiplier, energy: g.energy } : null,
     };
