@@ -376,77 +376,32 @@
       // o braço de verdade
       this.boardBase(geo, T(), 1, true, cfg, n, col, cur, compact, narrow, nx0, nx1, ny0, ny1);
 
-      // o desenho do acorde de agora, bem apagado: a referência de onde a mão está
+      // Só os acordes, como na cifra (o usuário reprovou mostrar cada batida: "muita informação"): o acorde
+      // de agora na casa dele, na cor da música; e só o PRÓXIMO chegando pela direita, andando para a
+      // esquerda até a casa certa na hora (dois compassos para atravessar o braço), só bolinhas e pestana.
       if (cur) {
         const sh = shapeOf(cur, st.inst);
-        if (sh) this.shape(geo, T(), 1, sh, true, col, 0.22, false);
+        if (sh) this.shape(geo, T(), 1, sh, true, col, 1, false);
       }
-
-      // Cada batida do instrumento na gravação entra pela direita e anda para a esquerda até a casa certa
-      // exatamente na hora de tocar (um compasso para atravessar o braço: só um compasso na tela); na hora,
-      // as notas acendem na cor da música enquanto soam. O nome de cada acorde novo vai junto, em cima.
-      const V = st.notes && st.notes.length ? st.notes : chordAttacks(chords, st.inst);
-      const pxb = (nx1 - nx0) / (narrow ? 4 : 5);
-      const span = (nx1 - nx0) / pxb;
-      const R = keys ? 0 : geo.R;
-      const nutX = keys ? nx0 : geo.fx(Math.max(geo.F0, 0));
-      // onde fica a nota no braço (sem o deslocamento de quem ainda está chegando)
-      const place = (p) => {
-        if (keys) {
-          const kk = geo.keyX.get(p[0]);
-          return kk ? [kk[0] + kk[1] / 2, ny0 + boardH * (kk[2] ? 0.4 : 0.8), Math.max(3, Math.min(kk[1] * 0.38, 9))] : null;
-        }
-        const [i, f] = p;
-        if (f > 0 && (f - 0.5 < geo.F0 || f - 0.5 > geo.F1)) return null; // fora das casas à vista
-        return [f === 0 ? nutX - R * 0.95 : geo.dotX(f), geo.sy(i), R];
-      };
-      if (!this.longestOf || this.longestFor !== V) {
-        this.longestFor = V;
-        this.longestOf = V.reduce((m, e) => Math.max(m, e[1]), 1);
-      }
-      const gutter = keys ? 0 : R * 2.2; // antes da pestana do braço: as cordas soltas
+      const pxb = (nx1 - nx0) / 8;
+      const gutter = keys ? 0 : geo.R * 2.2;
       ctx.save();
       ctx.beginPath();
       ctx.rect(nx0 - gutter, ny0 - labelH, nx1 - nx0 + gutter + padX, ny1 - ny0 + labelH + 1);
       ctx.clip();
-      // nome de cada acorde novo, chegando junto com a 1ª batida dele
-      for (const c of coming) {
-        const dx = (c.start_beat - b) * pxb;
-        if (dx > nx1 - nx0) break;
-        ctx.fillStyle = 'rgba(255,255,255,.85)';
-        ctx.font = `650 ${Math.round(nameSize * 0.7)}px ${SERIF}`;
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'bottom';
-        ctx.fillText(c.display, nx0 + dx, ny0 - 3);
-      }
-      const upcoming = [], playing = [];
-      for (let i = firstFrom(V, b, this.longestOf); i < V.length; i++) {
-        const e = V[i];
-        if (e[0] > b + span) break;
-        const on = e[0] <= b && b < e[0] + Math.max(e[1], 0.2);
-        if (on) playing.push(e);
-        else if (e[0] > b) upcoming.push(e);
-      }
-      const coming2 = col === WHITE ? 'rgba(150,150,150,.95)' : 'rgba(255,255,255,.92)';
-      for (let j = upcoming.length - 1; j >= 0; j--) { // do mais longe para o mais perto
-        const e = upcoming[j], dx = (e[0] - b) * pxb;
-        for (const p of attackPositions(e, chords, st.inst)) {
-          const q = place(p);
-          if (!q) continue;
-          ctx.fillStyle = coming2;
-          ctx.beginPath();
-          ctx.arc(q[0] + dx, q[1], q[2] * 0.72, 0, Math.PI * 2);
-          ctx.fill();
-        }
-      }
-      ctx.fillStyle = col === WHITE ? '#fff' : rgba(col, 1);
-      for (const e of playing) { // soando agora: na casa, na cor da música
-        for (const p of attackPositions(e, chords, st.inst)) {
-          const q = place(p);
-          if (!q) continue;
-          ctx.beginPath();
-          ctx.arc(q[0], q[1], q[2], 0, Math.PI * 2);
-          ctx.fill();
+      if (next) {
+        const dx = (next.start_beat - b) * pxb;
+        const sh = shapeOf(next, st.inst);
+        if (sh && dx <= nx1 - nx0 + 80) {
+          const g2 = geoOf(sh);
+          this.shape(g2, (x, y) => [x + dx, y], 1, sh, false, col, 1, true);
+          const u = frettedOf(sh);
+          const lx = keys ? nx0 : u.length ? g2.dotX(Math.min(...u)) - g2.R : g2.fx(Math.max(g2.F0, 0));
+          ctx.fillStyle = 'rgba(255,255,255,.9)';
+          ctx.font = `650 ${Math.round(nameSize * 0.7)}px ${SERIF}`;
+          ctx.textAlign = 'left';
+          ctx.textBaseline = 'bottom';
+          ctx.fillText(next.display, lx + dx, ny0 - 3);
         }
       }
       ctx.restore();
@@ -629,6 +584,7 @@
           return;
         }
         if (f === 0) { // solta: anel antes do braço (no baixo, a nota é ela: bolinha do tamanho das outras)
+          if (moving && !solo) return; // no que está chegando, só bolinhas e pestana
           ctx.beginPath();
           ctx.arc(nutX - R * 0.95, py, solo ? R * 0.8 : R * 0.55, 0, Math.PI * 2);
           if (solo) paint();

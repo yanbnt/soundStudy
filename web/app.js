@@ -1734,9 +1734,10 @@
     if (!voiceCache.has(m)) voiceCache.set(m, m.map((n) => [n[0], n[1], [[n[2], 0, 0]]]));
     return voiceCache.get(m);
   }
-  // As pistas (e o microfone do jogo) usam sempre todas as trocas de acorde: no nível Simples a lista junta
-  // as trocas rápidas e o Modo Show mostrava bem menos acordes do que a música tem
-  const pistaChords = () => (S.an && S.an.chords_detalhado) || S.chords || [];
+  // As pistas usam os acordes do nível escolhido (Simples = como na cifra; Detalhada = todas as trocas),
+  // os mesmos da linha de acordes. (Com a lista detalhada sempre, o usuário achou "muita coisa pra tocar,
+  // mudando muito rápido".)
+  const pistaChords = () => S.chords || [];
   const hasChords = () => pistaChords().some((c) => c.kind !== 'N');
   const INST_LABEL = { violao: 'Violão', cavaco: 'Cavaco', baixo: 'Baixo', teclado: 'Teclado', voz: 'Voz' };
   const TRACK_LABEL = {
@@ -2092,8 +2093,8 @@
     el.hidden = true;
   }
 
-  // o microfone confere contra os acordes que estão na tela: na Pista, a lista detalhada; na Partitura, a do nível
-  const chordAtBeat = (b) => (S.showView === 'pista' ? pistaChords() : S.chords).find((c) => c.start_beat <= b && b < c.end_beat) || null;
+  // o microfone confere contra os acordes que estão na tela (os do nível escolhido)
+  const chordAtBeat = (b) => (S.chords || []).find((c) => c.start_beat <= b && b < c.end_beat) || null;
 
   function judgeBeat(b) {
     const res = S.game.judge(chordAtBeat(b));
