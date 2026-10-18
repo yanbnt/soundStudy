@@ -101,8 +101,12 @@
     const minF = Math.min(...notes.map((n) => n.f));
     const atMin = notes.filter((n) => n.f === minF);
     let barre = null;
-    if (v.barre && atMin.length >= 2) {
-      barre = { f: minF, from: atMin[0].s, to: atMin[atMin.length - 1].s };
+    // pestana só de verdade: entre a 1ª e a última corda presas na casa mais baixa, nenhuma corda que não
+    // toca nem solta (Fmaj7 [1,×,2,2,1,×]: o dedo deitado prenderia a corda Lá, fora do acorde)
+    const from = atMin[0].s, to = atMin[atMin.length - 1].s;
+    const flat = v.frets.slice(from, to + 1).every((f) => f !== null && f >= minF);
+    if (v.barre && atMin.length >= 2 && flat) {
+      barre = { f: minF, from, to };
       atMin.forEach((n) => { n.finger = 1; });
     }
     const base = minF - 1;
@@ -535,6 +539,20 @@
     return v ? fretSvg(v, TUNING.violao, c.root, W, H, 'Diagrama do acorde no violão') : svg(c.root, c.kind, opts);
   }
 
+  // A formação do acorde no instrumento, a mesma do cartão "Como tocar" e dos diagramas pequenos.
+  // Cordas: { frets (da mais grave para a mais aguda; null = não toca, 0 = solta), barre: {f, from, to} | null }.
+  // Teclado: { keys: { left: [midi], right: [midi] } }.
+  function shapeFor(c, inst) {
+    if (!c || c.root == null || c.kind === 'N') return null;
+    if (inst === 'teclado') return { keys: keyVoicing(c) };
+    if (!TUNING[inst]) return null;
+    let v = null;
+    if (inst === 'violao' && !(c.ext && c.ext.length) && !c.alt5 && c.bass == null) v = voicing(c.root, c.kind);
+    if (!v) v = searchFrets(c, inst);
+    if (!v) return null;
+    return { frets: v.frets, barre: fingering(v).barre };
+  }
+
   // O que o teclado toca agora (as notas da gravação) e, apagadas, as próximas.
   function keysPlay(now, next, names) {
     const sounding = (now || []).map((x) => x[0]);
@@ -544,5 +562,5 @@
       label: 'Notas que o teclado toca agora' });
   }
 
-  window.ChordDiagram = { svg, voicing, neck, neckFor, play, forInstrument, keysPlay, chordInts, searchFrets };
+  window.ChordDiagram = { svg, voicing, neck, neckFor, play, forInstrument, keysPlay, chordInts, searchFrets, shapeFor };
 })();

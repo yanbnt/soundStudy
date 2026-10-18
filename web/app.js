@@ -1106,11 +1106,7 @@
   }
 
   // Diagramas no instrumento da partitura aberta (nos níveis de melodia, o violão).
-  // no Modo Show com a pista, o instrumento da pista
-  const diagramInst = () => {
-    if (S.showOn && S.showView === 'pista' && S.hwInst && S.hwInst !== 'voz') return S.hwInst;
-    return isInstrument(S.level) ? S.level : 'violao';
-  };
+  const diagramInst = () => (isInstrument(S.level) ? S.level : 'violao');
   const INST_NOW = { violao: 'Violão agora', baixo: 'Baixo agora', cavaco: 'Cavaco agora', teclado: 'Teclado agora' };
 
   // Níveis de instrumento: o cartão mostra as notas que ele está tocando agora na gravação (e apagadas as
@@ -1118,9 +1114,12 @@
   // Violão, cavaco e teclado mudam no máximo uma vez por tempo: a batida em semicolcheias trocava o
   // desenho 6 vezes por segundo, sem dar para ler. O cartão junta as notas daquele tempo (uma por corda).
   // O baixo toca uma nota de cada vez e segue nota a nota.
+  const longest = new WeakMap(); // nota mais longa de cada lista (acorde segurado por 2 compassos)
   function beatNotes(V, from, to) {
+    if (!longest.has(V)) longest.set(V, V.reduce((m, e) => Math.max(m, e[1]), 0));
+    const back = longest.get(V);
     let lo = 0, hi = V.length;
-    while (lo < hi) { const mid = (lo + hi) >> 1; if (V[mid][0] < from - 4) lo = mid + 1; else hi = mid; }
+    while (lo < hi) { const mid = (lo + hi) >> 1; if (V[mid][0] < from - back) lo = mid + 1; else hi = mid; }
     const best = new Map(); // corda (ou tecla, no teclado) -> [nota, quanto soa dentro do tempo]
     for (let j = lo; j < V.length && V[j][0] < to; j++) {
       const over = Math.min(to, V[j][0] + V[j][1]) - Math.max(from, V[j][0]);
@@ -1189,6 +1188,14 @@
     const c = S.chords;
     for (let j = ci + 1; j < c.length; j++) if (c[j].kind !== 'N') return c[j];
     return null;
+  }
+
+  // faz o próximo tick redesenhar o acorde (nomes e desenhos); antes apaga o destaque do chip aceso, que
+  // senão ficava aceso junto com o novo
+  function forceChordRedraw() {
+    const p = S.chips && S.chips[S.chordIdx];
+    if (p) p.classList.remove('on');
+    S.chordIdx = -2;
   }
 
   function updateChord(ci) {
@@ -1350,10 +1357,8 @@
     S.sheetStale = false;
     $('#paperLoading').hidden = true;
     moveSheet(S.sheet, viewTime(), true);
-    if (S.showOn) {
-      if (S.showView === 'partitura') loadStrip();
-      else { hwPickInst(); S.chordIdx = -2; }
-    }
+    // a pista não depende da partitura: só a esteira precisa ser montada de novo
+    if (S.showOn && S.showView === 'partitura') loadStrip();
   }
 
   const currentBeat = () => beatAt(S.master ? viewTime() : 0);
@@ -1430,7 +1435,9 @@
 
   function rerenderSheet() {
     if (!S.sheet) return;
-    if ($('#viewPlayer').hidden) { S.sheetStale = true; return; }
+    // escondida (outra tela, ou atrás do Modo Show): refaz quando voltar a aparecer; entrar no show em
+    // tela cheia redesenhava a partitura inteira invisível e travava o PC fraco na contagem
+    if ($('#viewPlayer').hidden || S.showOn) { S.sheetStale = true; return; }
     S.sheet.osmd.zoom = S.zoom;
     S.sheet.osmd.render();
     S.sheetStale = false;
@@ -1484,13 +1491,14 @@
     const work = $('#osmdShow'); // onde o OSMD desenha (fora da tela); os pedaços prontos vão para a esteira
     work.innerHTML = '';
     $('#stripTrack').querySelectorAll('.strip-chunk').forEach((c) => c.remove());
-    $('#stripMarks').innerHTML = '';
     $('#stripLoading').hidden = false;
     $('#stripLoading').textContent = 'Preparando a partitura…';
     S.strip = null;
     try {
+      // sem juntar compassos de pausa num só ("pausa de 8 compassos"): cada compasso precisa do seu desenho,
+      // senão um pedaço que começa no meio da pausa não monta e a esteira tentava de novo sem parar
       const osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay(work, {
-        ...OSMD_OPTIONS, renderSingleHorizontalStaffline: true,
+        ...OSMD_OPTIONS, renderSingleHorizontalStaffline: true, autoGenerateMultipleRestMeasuresFromRestMeasures: false,
         cursorsOptions: [{ type: 0, color: '#ffffff', alpha: 0, follow: false }],
       });
       brazilianChordLabels(osmd);
@@ -1517,7 +1525,10 @@
         notes += n;
         chunkOf.push(cuts.length - 1);
       });
-      S.strip = { osmd, token, starts, end, index, cuts, chunkOf, bars: measures.length, chunks: new Map(), head: box.clientWidth * 0.26, zoom: 1, want: [] };
+      S.strip = {
+        osmd, token, starts, end, index, cuts, chunkOf, bars: measures.length, chunks: new Map(),
+        head: box.clientWidth * 0.26, zoom: 1, want: [], failed: new Set(),
+      };
       const k = stripChunkOf(currentBeat() * ql);
       // o 1º pedaço mede a altura da linha e acerta o tamanho para caber na faixa
       const first = renderChunk(k, true);
@@ -1570,7 +1581,7 @@
     // cada nota (de todas as pautas) vira um ponto (tempo, x); a linha verde anda de nota em nota
     const pts = [];
     const lead = []; // distância da barra de compasso até a 1ª nota, para emendar um pedaço no outro
-    let xs = null, xe = null;
+    let xs = null, xe = null, first = null; // first: x da 1ª nota do pedaço
     for (const list of osmd.GraphicSheet.MeasureList || []) {
       for (const gm of list || []) {
         if (!gm || !gm.PositionAndShape || !gm.parentSourceMeasure) continue;
@@ -1590,20 +1601,23 @@
           pts.push([base + se.relInMeasureTimestamp.RealValue * 4, x]);
           if (se.relInMeasureTimestamp.RealValue === 0 && (firstX === null || x < firstX)) firstX = x;
         }
-        if (firstX !== null) lead.push(firstX - x0);
+        if (firstX !== null) {
+          lead.push(firstX - x0);
+          if (i === from - 1 && (first === null || firstX < first)) first = firstX;
+        }
       }
     }
     if (xs === null) { xs = 0; xe = rect.width; }
     lead.sort((a, b) => a - b);
     const d = lead.length ? lead[lead.length >> 1] : 0;
-    pts.push([t1, xe + d]); // o fim do pedaço emenda na 1ª nota do próximo
-    if (pts.length < 2) pts.unshift([t0, xs + d]);
+    if (!pts.length) pts.push([t0, xs + d]);
     pts.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
     for (let i = 1; i < pts.length; i++) if (pts[i][1] < pts[i - 1][1]) pts[i][1] = pts[i - 1][1]; // sempre para a direita
     const page = osmd.GraphicSheet.MusicPages && osmd.GraphicSheet.MusicPages[0];
     const line = page && page.MusicSystems[0] && page.MusicSystems[0].StaffLines[0];
     const sy = line ? line.PositionAndShape.AbsolutePosition.y * unit : 0; // topo da 1ª pauta
-    const ch = { k, pts, xs, xe, sy, w: rect.width, h: rect.height, t0, t1 };
+    // o fim (t1) emenda na 1ª nota do pedaço seguinte (chunkX); `d` é a reserva enquanto ele não existe
+    const ch = { k, pts, xs, xe, d, first: first === null ? xs + d : first, sy, w: rect.width, h: rect.height, t0, t1 };
     if (measureOnly) return ch;
     const el = document.createElement('div');
     el.className = 'strip-chunk';
@@ -1640,23 +1654,33 @@
   function wantChunks(list) {
     const st = S.strip;
     if (!st) return;
-    st.want = list.filter((k) => k >= 0 && k < st.cuts.length && !st.chunks.has(k));
+    st.want = list.filter((k) => k >= 0 && k < st.cuts.length && !st.chunks.has(k) && !st.failed.has(k));
     if (!st.want.length || st.pending) return;
     st.pending = true;
     setTimeout(() => {
       st.pending = false;
       if (S.strip !== st || !st.want.length) return;
-      try { renderChunk(st.want.shift()); } catch (_) { /* tenta de novo no próximo quadro */ }
+      const k = st.want.shift();
+      let ok = null;
+      try { ok = renderChunk(k); } catch (_) { ok = null; }
+      // pedaço que não monta não é tentado de novo a cada quadro (travava o PC); fica vazio
+      if (!ok) st.failed.add(k);
       updateStrip(currentBeat());
     }, 15);
   }
 
-  // x local (no pedaço) de um momento q, em semínimas; entre dois pontos, interpola
-  function chunkX(ch, q) {
-    const p = ch.pts;
+  // x local (no pedaço) de um momento q, em semínimas; entre dois pontos, interpola. Depois da última nota
+  // vai até o fim do pedaço, que fica onde está a 1ª nota do seguinte (`next`), sem pulo na troca
+  function chunkX(ch, q, next) {
+    const p = ch.pts, n = p.length;
     if (q <= p[0][0]) return p[0][1];
-    if (q >= p[p.length - 1][0]) return p[p.length - 1][1];
-    let lo = 0, hi = p.length - 1;
+    if (q >= p[n - 1][0]) {
+      const lx = p[n - 1][1];
+      const ex = Math.max(lx, next ? ch.xe + (next.first - next.xs) : ch.xe + ch.d);
+      if (q >= ch.t1) return ex;
+      return lx + (ex - lx) * ((q - p[n - 1][0]) / Math.max(1e-6, ch.t1 - p[n - 1][0]));
+    }
+    let lo = 0, hi = n - 1;
     while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (p[mid][0] <= q) lo = mid; else hi = mid; }
     return p[lo][1] + (p[hi][1] - p[lo][1]) * ((q - p[lo][0]) / Math.max(1e-6, p[hi][0] - p[lo][0]));
   }
@@ -1672,7 +1696,7 @@
       for (const ch of st.chunks.values()) ch.el.style.display = 'none';
       return;
     }
-    const left = st.head - chunkX(cur, q);
+    const left = st.head - chunkX(cur, q, st.chunks.get(k + 1));
     const placed = new Set();
     const place = (ch, x) => { placed.add(ch); ch.el.style.display = ''; ch.el.style.transform = `translate3d(${x.toFixed(1)}px,0,0)`; };
     place(cur, left);
@@ -1689,9 +1713,9 @@
     const st = S.strip;
     if (!st) return;
     const ql = (S.an && S.an.beat_ql) || 1;
-    const ch = st.chunks.get(stripChunkOf(b0 * ql));
+    const k = stripChunkOf(b0 * ql), ch = st.chunks.get(k), next = st.chunks.get(k + 1);
     if (!ch || !ch.marks) return;
-    const x0 = chunkX(ch, b0 * ql), x1 = chunkX(ch, Math.min(b1 * ql, ch.t1));
+    const x0 = chunkX(ch, b0 * ql, next), x1 = chunkX(ch, Math.min(b1 * ql, ch.t1), next);
     const el = document.createElement('div');
     el.className = 'strip-mark ' + cls;
     el.style.left = (x0 - 8) + 'px';
@@ -1700,8 +1724,9 @@
   }
 
   // ------------------------------------------------------------ pistas (pista.js)
-  // Pista deitada no "Tocando agora" (em cima da partitura) e pista estilo Guitar Hero no Modo Show.
-  // Notas no formato dos instrumentos: [tempo, duração, [[midi, corda, casa], ...]]; a voz vira o mesmo.
+  // Pista deitada no "Tocando agora" (em cima da partitura) e pista estilo Guitar Hero no Modo Show. As duas
+  // mostram só a FORMAÇÃO de cada acorde (o desenho do cartão "Como tocar"), do tamanho que ele dura; a
+  // opção "Voz" do show mostra a melodia caindo sobre um teclado.
   const voiceCache = new WeakMap();
   function voiceTrack() {
     const m = melodyNotes(); // a mesma melodia do jogo de melodia
@@ -1709,51 +1734,51 @@
     if (!voiceCache.has(m)) voiceCache.set(m, m.map((n) => [n[0], n[1], [[n[2], 0, 0]]]));
     return voiceCache.get(m);
   }
-  const trackNotes = (inst) => (inst === 'voz' ? voiceTrack() : instrumentNotes(inst));
+  const hasChords = () => (S.chords || []).some((c) => c.kind !== 'N');
   const INST_LABEL = { violao: 'Violão', cavaco: 'Cavaco', baixo: 'Baixo', teclado: 'Teclado', voz: 'Voz' };
   const TRACK_LABEL = {
-    violao: 'Violão · a casa em cada corda', cavaco: 'Cavaco · a casa em cada corda', baixo: 'Baixo · a casa em cada corda',
-    teclado: 'Teclado · as teclas', voz: 'Melodia · as notas da voz',
+    violao: 'Violão · formação de cada acorde', cavaco: 'Cavaco · formação de cada acorde',
+    baixo: 'Baixo · a nota de cada acorde', teclado: 'Teclado · as teclas de cada acorde',
   };
   // quantos tempos aparecem pela frente (`sec` segundos de música)
-  const aheadBeats = (sec) => Math.max(3, Math.min(10, (sec * ((S.an && S.an.bpm) || 90)) / 60));
+  const aheadBeats = (sec) => Math.max(3, Math.min(12, (sec * ((S.an && S.an.bpm) || 90)) / 60));
   const narrowScreen = () => window.innerWidth <= 700;
 
-  // "Tocando agora": o instrumento do nível aberto; nos níveis de melodia, a voz
-  const trackInst = () => (isInstrument(S.level) ? S.level : 'voz');
+  // "Tocando agora": o instrumento do nível aberto; nos níveis de melodia, o violão
   function trackSource() {
     if (!S.an || S.showOn) return null;
-    const inst = trackInst(), narrow = narrowScreen(), notes = trackNotes(inst);
-    if (S.trackShown !== notes || S.trackNarrow !== narrow) { // outra música ou instrumento: título e altura
-      S.trackShown = notes;
-      S.trackNarrow = narrow;
+    const inst = isInstrument(S.level) ? S.level : 'violao', narrow = narrowScreen();
+    if (S.trackShown !== inst + narrow) { // trocou o instrumento ou a largura: título e altura
+      S.trackShown = inst + narrow;
       $('#trackLabel').textContent = TRACK_LABEL[inst];
-      $('#trackCanvas').style.height = Pista.Highway.flatHeight(inst, notes, narrow) + 'px';
+      $('#trackCanvas').style.height = Pista.Highway.flatHeight(narrow) + 'px';
     }
-    return {
-      b: beatAt(viewTime()), ahead: aheadBeats(narrow ? 2.8 : 5.2), inst, notes,
-      chords: S.chords, color: S.songRgb, flash: null, names: noteName,
-    };
+    return { b: beatAt(viewTime()), ahead: aheadBeats(narrow ? 3.6 : 6.5), inst, chords: S.chords, color: S.songRgb, flash: null };
   }
 
-  // Modo Show: pista vertical do instrumento escolhido nos botões em cima dela
+  // Modo Show: pista em pé do instrumento escolhido nos botões em cima dela
   function hwSource() {
     if (!S.an || !S.showOn) return null;
+    const voice = S.hwInst === 'voz';
     return {
-      b: beatAt(viewTime()), ahead: aheadBeats(narrowScreen() ? 2.2 : 2.6), inst: S.hwInst, notes: trackNotes(S.hwInst),
-      chords: S.chords, color: S.songRgb, flash: S.hwFlash, names: noteName,
+      b: beatAt(viewTime()), ahead: aheadBeats(voice ? 2.6 : narrowScreen() ? 3.6 : 4.2), inst: S.hwInst,
+      notes: voice ? voiceTrack() : null, chords: S.chords, color: S.songRgb, flash: S.hwFlash,
     };
   }
-  const hwChoices = () => ['violao', 'cavaco', 'baixo', 'teclado', 'voz'].filter((k) => trackNotes(k).length);
+  // a formação sai dos acordes: os 4 instrumentos sempre que a música tem acordes; a voz se tem melodia
+  const hwChoices = () => [...(hasChords() ? ['violao', 'cavaco', 'baixo', 'teclado'] : []), ...(voiceTrack().length ? ['voz'] : [])];
   function renderHwInsts() {
     $('#hwInsts').innerHTML = hwChoices()
       .map((k) => `<button data-inst="${k}" class="${k === S.hwInst ? 'on' : ''}">${INST_LABEL[k]}</button>`).join('');
   }
-  // o instrumento do nível aberto; no jogo de melodia, a voz; senão o violão (ou o que tiver)
-  function hwPickInst() {
+  // No jogo de melodia, a voz. Senão: com `keep`, fica o que a pessoa escolheu (se ainda existe); ao abrir
+  // o show, o instrumento do nível aberto, ou o violão (ou o que tiver)
+  function hwPickInst(keep) {
     const have = hwChoices();
-    const melody = S.gameOn && S.game.mode === 'melody' && have.includes('voz');
-    S.hwInst = melody ? 'voz' : isInstrument(S.level) && have.includes(S.level) ? S.level : have[0] || 'violao';
+    if (S.gameOn && S.game.mode === 'melody' && have.includes('voz')) S.hwInst = 'voz';
+    else if (!(keep && have.includes(S.hwInst))) {
+      S.hwInst = isInstrument(S.level) && have.includes(S.level) ? S.level : have.includes('violao') ? 'violao' : have[0] || 'violao';
+    }
     renderHwInsts();
     return have.length > 0;
   }
@@ -1764,21 +1789,22 @@
 
   function clearStrip() {
     $('#osmdShow').innerHTML = '';
-    $('#stripMarks').innerHTML = '';
-    $('#stripTrack').querySelectorAll('.strip-chunk').forEach((c) => c.remove());
+    $('#stripTrack').querySelectorAll('.strip-chunk').forEach((c) => c.remove()); // levam as marcas junto
     S.strip = null;
     S.stripToken = (S.stripToken || 0) + 1; // cancela uma montagem em andamento
   }
 
-  // Pista (estilo Guitar Hero) ou Partitura (a esteira); a escolha fica guardada
-  function setShowView(v, save) {
-    if (v === 'pista' && !hwPickInst()) v = 'partitura'; // música sem nenhuma nota para a pista
-    S.showView = v;
+  // Pista (estilo Guitar Hero) ou Partitura (a esteira). A escolha da pessoa fica guardada mesmo quando
+  // esta música não tem nada para a pista (aí ela vê a Partitura, mas a próxima abre na Pista).
+  // `keep`: troca pelos botões, mantém o instrumento escolhido na pista.
+  function setShowView(v, save, keep) {
     if (save) { try { localStorage.setItem('pv.showView', v); } catch (_) { /* sem armazenamento */ } }
+    if (v === 'pista' && !hwPickInst(keep)) v = 'partitura'; // sem acordes nem melodia
+    S.showView = v;
     $('#viewPista').classList.toggle('on', v === 'pista');
     $('#viewPartitura').classList.toggle('on', v === 'partitura');
     $('#show').classList.toggle('hw', v === 'pista');
-    S.chordIdx = -2; // o desenho do acorde segue o instrumento da pista
+    if (S.stage) focusStage(); // a faixa de baixo mudou de altura: a cena de fundo se ajusta
     if (v === 'pista') {
       clearStrip();
       S.hw.start();
@@ -1982,6 +2008,8 @@
     $('#show').hidden = true;
     S.hw.stop();
     clearStrip();
+    // a partitura que ficou para depois é refeita agora (com tela cheia, o resize da saída faz isso)
+    if (S.sheetStale && !document.fullscreenElement) rerenderSheet();
   }
 
   function endGame() {
@@ -1989,6 +2017,7 @@
       S.game.stop();
       S.gameOn = false;
     }
+    $('#show').classList.remove('game');
     if (S.mixBeforeShow) {
       for (const k of Object.keys(S.mixBeforeShow)) Object.assign(S.mix[k], S.mixBeforeShow[k]);
       S.mixBeforeShow = null;
@@ -2022,10 +2051,12 @@
       applyMix();
     }
     if (S.gameOn) S.game.reset();
-    if (S.showView === 'pista') { hwPickInst(); S.chordIdx = -2; } // jogo de melodia: a pista da voz
+    if (S.showView === 'pista') hwPickInst(true); // jogo de melodia: a pista da voz
+    $('#show').classList.toggle('game', !!S.gameOn); // na pista, o quadro de cima só aparece no jogo
     $('#showScore').hidden = !S.gameOn;
     $('#hudHeard').hidden = !(S.gameOn && S.game.mode === 'melody');
-    $('#stripMarks').innerHTML = '';
+    // marcas de acerto/erro da rodada anterior (ficam dentro de cada pedaço da esteira)
+    if (S.strip) for (const ch of S.strip.chunks.values()) if (ch.marks) ch.marks.innerHTML = '';
     updateScoreHud();
     setLoop(0);
     seek(0);
@@ -3654,15 +3685,13 @@
     S.hw = new Pista.Highway($('#hwCanvas'), hwSource);
     S.track = new Pista.Highway($('#trackCanvas'), trackSource, { orient: 'h' });
     S.track.start();
-    $('#viewPista').onclick = () => setShowView('pista', true);
-    $('#viewPartitura').onclick = () => setShowView('partitura', true);
+    $('#viewPista').onclick = () => setShowView('pista', true, true);
+    $('#viewPartitura').onclick = () => setShowView('partitura', true, true);
     $('#hwInsts').onclick = (e) => {
       const bt = e.target.closest('button[data-inst]');
       if (!bt) return;
       S.hwInst = bt.dataset.inst;
       renderHwInsts();
-      S.chordIdx = -2; // o desenho do acorde troca de instrumento junto
-      tick();
     };
     $('#btnShowStart').onclick = () => startShow(null);
     $('#btnShowChords').onclick = () => startShow('chords');
