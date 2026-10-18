@@ -1938,7 +1938,8 @@
     return st;
   }
 
-  const melodyNotes = () => (S.an && S.an.melody && S.an.melody[isInstrument(S.level) ? 'detalhado' : S.level]) || [];
+  // no Modo Show (pista da Voz e jogo de melodia) sempre a melodia detalhada: a simples junta as notas curtas
+  const melodyNotes = () => (S.an && S.an.melody && S.an.melody[S.showOn || isInstrument(S.level) ? 'detalhado' : S.level]) || [];
 
   function resetMelodyCursor() {
     const notes = melodyNotes();
@@ -1997,6 +1998,7 @@
     if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
     resetLyrics();
     setShowView(savedShowView());
+    resetMelodyCursor(); // a melodia do show é a detalhada: o índice muda de lista
   }
 
   function closeShow() {
@@ -2013,6 +2015,7 @@
     $('#show').hidden = true;
     S.hw.stop();
     clearStrip();
+    resetMelodyCursor();
     // a partitura que ficou para depois é refeita agora (com tela cheia, o resize da saída faz isso)
     if (S.sheetStale && !document.fullscreenElement) rerenderSheet();
   }
@@ -2085,8 +2088,8 @@
     el.hidden = true;
   }
 
-  // o microfone confere contra os mesmos acordes que a pista mostra
-  const chordAtBeat = (b) => pistaChords().find((c) => c.start_beat <= b && b < c.end_beat) || null;
+  // o microfone confere contra os acordes que estão na tela: na Pista, a lista detalhada; na Partitura, a do nível
+  const chordAtBeat = (b) => (S.showView === 'pista' ? pistaChords() : S.chords).find((c) => c.start_beat <= b && b < c.end_beat) || null;
 
   function judgeBeat(b) {
     const res = S.game.judge(chordAtBeat(b));

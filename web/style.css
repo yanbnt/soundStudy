@@ -818,8 +818,11 @@ h1, h2, h3 { margin: 0; }
 .show.hw .hud-label, .show.hw .hud-chord, .show.hw .hud-diagram, .show.hw .hud-next, .show.hw .hud-beats { display: none; }
 .show.hw:not(.game) .show-hud { display: none; }
 .show.hw .show-score { display: none; } /* na pista os pontos vão nos indicadores ao lado dela */
+/* na pista o "Perfeito!/Errou" é desenhado nos indicadores (no canvas); fica aqui só a nota ouvida (melodia),
+   à direita embaixo do medidor, fora de onde os acordes descem */
+.show.hw .hud-feedback { display: none; }
 .show.hw .show-hud {
-  position: absolute; top: 34%; left: 50%; right: auto; transform: translateX(-50%); z-index: 3;
+  position: absolute; top: 150px; right: 24px; left: auto; transform: none; z-index: 3;
   width: auto; margin: 0; padding: 0; background: transparent; pointer-events: none;
 }
 .show.hw .hw-canvas { display: block; position: absolute; inset: 0; width: 100%; height: 100%; }
