@@ -8,7 +8,8 @@
 // faixas de corda com bolinhas no jeito do Guitar Hero ("não precisa imitar; quero o desenho no braço"),
 // braços pequenos crescendo em perspectiva ("nada de zoom") e descendo de cima ("nada de cima para baixo;
 // as notas vêm chegando da direita para a esquerda"). Casas estreitas: 12 à vista (9 no celular).
-// - Em pé (orient 'v', Modo Show): com o jogo valendo pontos, os indicadores em cima (pontos, multiplicador,
+// O braço tem os detalhes de um violão de verdade (cabeça com tarraxas, madeira com veios, marcações, trastes).
+// - Modo Show (orient 'v'): o braço deitado, grande (em pé foi reprovado: "feio"); com o jogo valendo pontos, os indicadores em cima (pontos, multiplicador,
 //   sequência, plateia e o retorno "Perfeito!/Errou"); o acerto do microfone (game.js confere cada tempo
 //   contra o acorde) solta raios do desenho daquele acorde.
 // - Deitada (orient 'h', "Tocando agora", em cima da partitura): o mesmo, mais baixo.
@@ -33,6 +34,12 @@
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   // posição de uma casa ao longo da corda (regra das 12 notas: as casas vão ficando mais curtas)
   const fretPos = (f) => 1 - Math.pow(2, -f / 12);
+  // veios da madeira do braço: linhas finas e compridas, um pouco onduladas, presas às casas (andam junto
+  // quando as casas à vista mudam); sorteio fixo, sempre os mesmos
+  const GRAIN = Array.from({ length: 18 }, (_, i) => {
+    const r = (s) => { const x = Math.sin(i * 12.9898 + s * 78.233) * 43758.5453; return x - Math.floor(x); };
+    return { y: 0.04 + r(1) * 0.92, f0: r(2) * 20 - 3, len: 2 + r(3) * 6, amp: 0.4 + r(4) * 0.9, ph: r(5) * 6.283, a: 0.04 + r(6) * 0.05, dark: r(7) < 0.5 };
+  });
 
   // texto em cima da cor da música: preto ou branco, o de mais contraste (mesma conta da WCAG do inkFor do
   // app.js, para combinar com o --song-ink dos botões)
@@ -255,30 +262,11 @@
       return Math.round(cfg.names.length * (narrow ? 24 : 30) + 66);
     }
 
-    // Texto sempre em pé, mesmo com o braço girado (Modo Show): (x, y) no braço deitado; em pé o ponto vai
-    // para (y, H - x) da tela, com o alinhamento `vAlign/vBase` próprio de lá.
-    txt(s, x, y, align, base, vAlign, vBase) {
-      const ctx = this.ctx;
-      if (!this.vert) {
-        ctx.textAlign = align;
-        ctx.textBaseline = base;
-        ctx.fillText(s, x, y);
-        return;
-      }
-      ctx.save();
-      ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
-      ctx.textAlign = vAlign;
-      ctx.textBaseline = vBase;
-      ctx.fillText(s, y, this.H - x);
-      ctx.restore();
-    }
-
     draw(now, st) {
       const ctx = this.ctx;
       ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
       ctx.clearRect(0, 0, this.W, this.H);
       this.moving = false;
-      this.vert = false;
       if (!st || !this.W) return;
       const voice = st.inst === 'voz';
       const empty = voice ? !(st.notes && st.notes.length) : !(st.chords || []).some((c) => c.kind !== 'N');
@@ -342,7 +330,7 @@
       if (st.game && !compact) top = this.drawHud(st.game, col, top, narrow, st.flash, now) + 6;
       const nameSize = compact ? (narrow ? 15 : 17) : narrow ? 20 : 30;
       const padX = compact ? 4 : narrow ? 10 : 28;
-      const numH = keys ? 6 : compact ? 14 : narrow ? 16 : 20; // números das casas embaixo do braço
+      const numH = keys ? 6 : compact ? 14 : narrow ? 22 : 28; // números das casas (e as tarraxas) embaixo do braço
       const labelH = Math.round(nameSize * 0.7) + 6; // nome dos acordes que vêm, em cima do braço
       const room = Math.max(30, H - top - nameSize - 8 - labelH - numH);
       // o braço ocupa o quadro (nada desce de cima: as bolinhas vêm pela direita, dentro dele)
@@ -352,38 +340,25 @@
         : Math.min(room, Math.max(40, n * (compact ? (narrow ? 24 : 30) : narrow ? 30 : 40)));
       // à esquerda do braço: o nome das cordas e, antes da pestana do braço, os anéis (solta) e × (não toca)
       const rEst = clamp((boardH / n) * 0.4, 3, 17);
-      const labelW = keys ? 0 : (compact ? (narrow ? 24 : 30) : narrow ? 30 : 40) + rEst * 1.9 + 6;
-      let nx0 = padX + labelW, nx1 = W - padX;
-      let ny1 = H - numH - 2, ny0 = ny1 - boardH;
+      // (a cabeça do instrumento fica nesse espaço: comprida o bastante para as tarraxas)
+      const labelW = keys ? 0 : Math.max((compact ? (narrow ? 24 : 30) : narrow ? 30 : 40) + rEst * 1.9 + 6, boardH * (W < 480 ? 0.45 : 0.62));
+      const nx0 = padX + labelW, nx1 = W - padX;
+      const ny1 = H - numH - 2, ny0 = ny1 - boardH;
       const nameY = top + 2;
       const T = () => (x, y) => [x, y]; // o braço de verdade, sem deslocamento
-      // Modo Show: o braço em pé (o usuário: "no modo ao vivo o braço voltou a ser horizontal"). É o mesmo
-      // braço deitado, girado: a pestana do braço embaixo, as casas subindo, a corda mais grave à esquerda (a
-      // ordem do diagrama); o próximo acorde desce de cima até a casa certa. Os textos ficam em pé (txt).
-      const vert = !compact && !keys;
-      this.vert = vert;
-      let vBoard = boardH;
-      if (vert) {
-        vBoard = clamp(n * (narrow ? 44 : 56), 120, W - 2 * padX - 44); // largura do braço na tela
-        const rV = clamp((vBoard / n) * 0.4, 3, 17);
-        nx0 = 8 + rV * 1.9 + 30;               // pestana perto da borda de baixo (embaixo: anéis e nomes)
-        nx1 = H - (top + nameSize + 14);       // fim do braço logo abaixo do nome do acorde
-        ny0 = (W - vBoard) / 2;
-        ny1 = ny0 + vBoard;
-      }
 
       // geometria do braço (ou do teclado) em coordenadas do braço de verdade
       let geo;
-      // casas à vista: mais casas, cada uma mais estreita (estava comprido); em pé o braço é mais curto
-      const count = vert ? (narrow ? 7 : 9) : narrow ? 9 : 12;
+      // casas à vista: mais casas, cada uma mais estreita (estava comprido)
+      const count = narrow ? 9 : 12;
       const stringGeo = (fs) => {
         const F0 = fs - 1, F1 = F0 + count, p0 = fretPos(F0), p1 = fretPos(F1);
         const fx = (F) => nx0 + ((fretPos(F) - p0) / (p1 - p0)) * (nx1 - nx0);
-        const gap = (vert ? vBoard : boardH) / n;
+        const gap = boardH / n;
         const R = clamp(Math.min(gap * 0.4, (fx(F1) - fx(F1 - 1)) * 0.3), 3, 17);
         return {
           keys: false, inst: st.inst, F0, F1, fx, gap, R, sy: (i) => ny0 + (i + 0.5) * gap,
-          dotX: (f) => fx(f - 1) + (fx(f) - fx(f - 1)) * 0.56,
+          dotX: (f) => fx(f - 1) + (fx(f) - fx(f - 1)) * 0.56, headL: padX, end: W - (compact ? 0 : padX * 0.4),
         };
       };
       if (keys) {
@@ -408,12 +383,8 @@
         return stringGeo(fitStart(u, count) || Math.max(1, Math.max(...u) - count + 1));
       };
 
-      // em pé: tudo é desenhado no braço deitado e girado 90° (x deitado -> altura, de baixo para cima)
-      ctx.save();
-      if (vert) ctx.transform(0, -1, 1, 0, 0, H);
-
       // o braço de verdade
-      this.boardBase(geo, T(), 1, true, cfg, n, col, cur, compact, narrow, nx0, nx1, ny0, ny1);
+      this.boardBase(geo, cfg, n, col, cur, compact, narrow, nx0, nx1, ny0, ny1);
 
       // Só os acordes, como na cifra (o usuário reprovou mostrar cada batida: "muita informação"): o acorde
       // de agora na casa dele, na cor da música; e só o PRÓXIMO chegando pela direita, andando para a
@@ -470,13 +441,9 @@
           const lx = keys ? nx0 : u.length ? g2.dotX(Math.min(...u)) - g2.R : g2.fx(Math.max(g2.F0, 0));
           ctx.fillStyle = 'rgba(255,255,255,.9)';
           ctx.font = `650 ${Math.round(nameSize * 0.7)}px ${SERIF}`;
-          if (vert) { // em pé: o nome ao lado do braço, descendo junto com o desenho
-            ctx.restore();
-            this.txt(next.display, lx + dx, ny0 - 8, 'left', 'bottom', 'right', 'middle');
-            ctx.save();
-          } else {
-            this.txt(next.display, lx + dx, ny0 - 3, 'left', 'bottom', 'right', 'middle');
-          }
+          ctx.textAlign = 'left';
+          ctx.textBaseline = 'bottom';
+          ctx.fillText(next.display, lx + dx, ny0 - 3);
         }
       }
       ctx.restore();
@@ -491,7 +458,6 @@
           ctx.fillRect(nx0, ny0, nx1 - nx0, ny1 - ny0);
         }
       }
-      ctx.restore(); // fim do braço girado
       // nome do acorde de agora, grande
       if (cur) {
         ctx.textAlign = 'left';
@@ -502,90 +468,199 @@
       }
     }
 
-    // o braço (ou teclado): madeira escura, trastes, pestana do braço (nut), marcações, cordas.
-    // `real`: o braço de verdade (com nome das cordas e números das casas); senão um braço pequeno que vem
-    boardBase(geo, tr, k, real, cfg, n, col, cur, compact, narrow, nx0, nx1, ny0, ny1, alpha = 1) {
+    // O braço (ou teclado). O braço tem os detalhes de um violão de verdade, como o do cartão "Como tocar"
+    // (o usuário: "bem bonito, com os detalhes de madeira do braço"): a cabeça com as tarraxas antes da
+    // pestana do braço, a escala de madeira com veios e friso nas bordas, as marcações das casas (pequenas e
+    // entre as cordas, para não parecerem notas), trastes de metal, a pestana de osso e cordas com brilho.
+    // Tudo em cinzas: a cor da música fica só no acorde. Depois das casas à vista o braço some aos poucos.
+    boardBase(geo, cfg, n, col, cur, compact, narrow, nx0, nx1, ny0, ny1) {
       const ctx = this.ctx;
-      const [x0, y0] = tr(nx0, ny0), [x1, y1] = tr(nx1, ny1);
-      const a = alpha.toFixed(3);
       if (geo.keys) {
         for (const m of geo.whites) {
           const [kx, kw] = geo.keyX.get(m);
-          const [ax] = tr(kx, ny0), [bx] = tr(kx + kw, ny0);
-          ctx.fillStyle = real ? '#e8e8e8' : `rgba(232,232,232,${(0.85 * alpha).toFixed(3)})`;
-          ctx.fillRect(ax + 0.5, y0, bx - ax - 1, y1 - y0);
+          ctx.fillStyle = '#e8e8e8';
+          ctx.fillRect(kx + 0.5, ny0, kw - 1, ny1 - ny0);
         }
         for (let m = geo.lo; m <= geo.hi; m++) {
           const kk = geo.keyX.get(m);
           if (!kk || !kk[2]) continue;
-          const [ax] = tr(kk[0], ny0), [bx] = tr(kk[0] + kk[1], ny0);
-          ctx.fillStyle = real ? '#111' : `rgba(17,17,17,${a})`;
-          ctx.fillRect(ax, y0, bx - ax, (y1 - y0) * 0.6);
+          ctx.fillStyle = '#111';
+          ctx.fillRect(kk[0], ny0, kk[1], (ny1 - ny0) * 0.6);
         }
         return;
       }
-      ctx.fillStyle = real ? '#171717' : `rgba(16,16,16,${(0.88 * alpha).toFixed(3)})`;
-      ctx.fillRect(x0, y0, x1 - x0, y1 - y0);
-      // marcações do braço (3, 5, 7, 9, 12): desligadas — mesmo bem de leve pareciam notas
-      for (const F of []) {
-        if (F - 0.5 < geo.F0 || F - 0.5 > geo.F1) continue;
-        const mx = (geo.fx(F - 1) + geo.fx(F)) / 2;
-        const ys = F === 12 ? [ny0 + (ny1 - ny0) * 0.3, ny0 + (ny1 - ny0) * 0.7] : [(ny0 + ny1) / 2];
-        ctx.fillStyle = 'rgba(255,255,255,.05)';
-        for (const yy of ys) {
+      const { gap, fx } = geo, bh = ny1 - ny0;
+      const nutX = fx(0), atNut = nutX >= nx0 - 3, xs = Math.max(nx0, nutX), xe = geo.end;
+      // cabeça do instrumento com as tarraxas (some quando as casas à vista se afastam da pestana)
+      const head = clamp(1 - geo.F0 * 4, 0, 1);
+      if (head > 0) {
+        // a cabeça alarga logo depois da pestana (curva) e termina arredondada; as tarraxas saem das bordas
+        const hx0 = geo.headL, L = nutX - hx0, fl = clamp(gap * 0.2, 3, 10), rr = clamp(gap * 0.45, 4, 12);
+        const xc = nutX - L * 0.32; // onde a cabeça já está toda aberta
+        const pr = clamp(gap * (compact ? 0.16 : 0.2) * (geo.inst === 'baixo' ? 1.2 : 1), 2.5, 9);
+        ctx.globalAlpha = head;
+        ctx.beginPath();
+        ctx.moveTo(nutX, ny0);
+        ctx.quadraticCurveTo(nutX - L * 0.18, ny0, xc, ny0 - fl);
+        ctx.lineTo(hx0 + rr, ny0 - fl);
+        ctx.quadraticCurveTo(hx0, ny0 - fl, hx0, ny0 - fl + rr);
+        ctx.lineTo(hx0, ny1 + fl - rr);
+        ctx.quadraticCurveTo(hx0, ny1 + fl, hx0 + rr, ny1 + fl);
+        ctx.lineTo(xc, ny1 + fl);
+        ctx.quadraticCurveTo(nutX - L * 0.18, ny1, nutX, ny1);
+        ctx.closePath();
+        ctx.fillStyle = '#1a1a1a';
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,.14)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        // tarraxas: metade em cima, metade embaixo; cada uma com o pino na cabeça, o eixo e a borboleta.
+        // As cordas passam da pestana do braço até o pino delas (a de fora no pino mais perto da pestana).
+        const half = Math.ceil(n / 2), pa = hx0 + rr * 0.5 + pr, pb = xc - pr * 0.6;
+        const bw = pr * 1.35, bh2 = pr * 1.5, shaft = Math.max(2, pr * 0.45);
+        const pinX = (j) => (half > 1 ? pa + (j * (pb - pa)) / (half - 1) : (pa + pb) / 2);
+        const pinY = (s) => (s < 0 ? ny0 - fl + pr * 0.9 : ny1 + fl - pr * 0.9);
+        for (let i = 0; i < n; i++) {
+          const top = i < half, j = top ? half - 1 - i : i - half;
+          ctx.strokeStyle = 'rgba(175,175,175,.75)';
+          ctx.lineWidth = Math.max(0.6, cfg.widths[i] * (compact ? 0.6 : 0.85));
+          line(ctx, nutX, geo.sy(i), pinX(j), pinY(top ? -1 : 1));
+        }
+        for (let i = 0; i < half; i++) {
+          const px = pinX(i);
+          for (const s of [-1, 1]) {
+            const edge = s < 0 ? ny0 - fl : ny1 + fl;
+            ctx.fillStyle = '#5a5a5a'; // eixo
+            ctx.fillRect(px - pr * 0.22, s < 0 ? edge - shaft : edge, pr * 0.44, shaft);
+            const by = edge + s * (shaft + bh2 / 2); // borboleta
+            roundRect(ctx, px - bw / 2, by - bh2 / 2, bw, bh2, bw * 0.45);
+            ctx.fillStyle = '#bdbdbd';
+            ctx.fill();
+            ctx.fillStyle = 'rgba(255,255,255,.7)';
+            ctx.fillRect(px - bw * 0.22, by - bh2 * 0.32, Math.max(1, bw * 0.16), bh2 * 0.64);
+            ctx.beginPath(); // pino na cabeça
+            ctx.arc(px, pinY(s), pr * 0.42, 0, Math.PI * 2);
+            ctx.fillStyle = '#9a9a9a';
+            ctx.fill();
+            ctx.strokeStyle = '#000';
+            ctx.stroke();
+          }
+        }
+        ctx.globalAlpha = 1;
+      }
+      // escala de madeira: mais clara no meio (o braço é arredondado), com veios e o friso nas bordas
+      if (!this.wood || this.wood.y0 !== ny0 || this.wood.y1 !== ny1) {
+        const g = ctx.createLinearGradient(0, ny0, 0, ny1);
+        g.addColorStop(0, '#0f0f0f');
+        g.addColorStop(0.5, '#242424');
+        g.addColorStop(1, '#0f0f0f');
+        this.wood = { y0: ny0, y1: ny1, g };
+      }
+      ctx.fillStyle = this.wood.g;
+      ctx.fillRect(xs, ny0, xe - xs, bh);
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(xs, ny0, xe - xs, bh);
+      ctx.clip();
+      ctx.lineWidth = 1;
+      for (const v of GRAIN) {
+        const a = fx(v.f0), b = fx(v.f0 + v.len);
+        if (b < xs || a > xe) continue;
+        const y = ny0 + v.y * bh;
+        ctx.strokeStyle = v.dark ? `rgba(0,0,0,${(v.a * 7).toFixed(3)})` : `rgba(255,255,255,${v.a.toFixed(3)})`;
+        ctx.beginPath();
+        for (let s = 0; s <= 8; s++) {
+          const x = a + ((b - a) * s) / 8, yy = y + Math.sin(v.ph + s * 0.9) * v.amp;
+          if (s) ctx.lineTo(x, yy);
+          else ctx.moveTo(x, yy);
+        }
+        ctx.stroke();
+      }
+      ctx.restore();
+      ctx.fillStyle = 'rgba(255,255,255,.13)';
+      ctx.fillRect(xs, ny0, xe - xs, 1);
+      ctx.fillRect(xs, ny1 - 1, xe - xs, 1);
+      // marcações das casas 3, 5, 7, 9, 15, 17 e duas na 12: pequenas, entre as cordas
+      const ir = Math.max(1.6, Math.min(geo.R * 0.42, gap * 0.17));
+      ctx.fillStyle = 'rgba(255,255,255,.16)';
+      for (const F of [3, 5, 7, 9, 12, 15, 17]) {
+        const mx = (fx(F - 1) + fx(F)) / 2;
+        if (mx < xs || mx > xe) continue;
+        for (const yy of F === 12 ? [ny0 + gap, ny1 - gap] : [ny0 + bh / 2]) {
           ctx.beginPath();
-          ctx.arc(mx, yy, Math.max(1.5, geo.gap * 0.17), 0, Math.PI * 2);
+          ctx.arc(mx, yy, ir, 0, Math.PI * 2);
           ctx.fill();
         }
       }
-      // trastes; no começo do braço, a pestana do braço (nut) grossa
-      for (let F = Math.ceil(geo.F0); F <= Math.floor(geo.F1); F++) {
-        const [px] = tr(geo.fx(F), ny0);
-        if (F === 0) {
-          ctx.fillStyle = `rgba(235,235,235,${a})`;
-          ctx.fillRect(px - 3 * k, y0, Math.max(2, 6 * k), y1 - y0);
-        } else {
-          ctx.strokeStyle = `rgba(190,190,190,${(0.55 * alpha).toFixed(3)})`;
-          ctx.lineWidth = Math.max(1, 2 * k);
-          line(ctx, px, y0, px, y1);
-        }
+      // trastes de metal, com brilho; no começo, a pestana do braço, de osso
+      const fw = compact ? 2 : 3;
+      for (let F = Math.max(1, Math.ceil(geo.F0)); F <= 30; F++) {
+        const px = fx(F);
+        if (px > xe) break;
+        if (px < xs) continue;
+        ctx.fillStyle = '#6e6e6e';
+        ctx.fillRect(px - fw / 2, ny0, fw, bh);
+        ctx.fillStyle = 'rgba(230,230,230,.75)';
+        ctx.fillRect(px - fw / 2, ny0, 1, bh);
       }
-      // cordas (a mais grave em cima)
+      if (atNut) {
+        const w = compact ? 5 : 7;
+        ctx.fillStyle = '#e6e6e6';
+        ctx.fillRect(nutX - w / 2, ny0 - 1, w, bh + 2);
+        ctx.fillStyle = 'rgba(0,0,0,.3)';
+        ctx.fillRect(nutX + w / 2 - 1.5, ny0 - 1, 1.5, bh + 2);
+      }
+      // cordas (a mais grave em cima): a sombra na madeira, a corda e o brilho dela
+      const sx = atNut ? nutX : xs;
       for (let i = 0; i < n; i++) {
-        const [, py] = tr(nx0, geo.sy(i));
-        ctx.strokeStyle = `rgba(255,255,255,${(0.6 * alpha).toFixed(3)})`;
-        ctx.lineWidth = Math.max(0.6, cfg.widths[i] * (compact ? 0.6 : 0.85) * k);
-        line(ctx, x0, py, x1, py);
+        const py = geo.sy(i), w = Math.max(0.6, cfg.widths[i] * (compact ? 0.6 : 0.85));
+        ctx.lineWidth = w;
+        ctx.strokeStyle = 'rgba(0,0,0,.6)';
+        line(ctx, sx, py + w * 0.5 + 1, xe, py + w * 0.5 + 1);
+        ctx.strokeStyle = 'rgba(175,175,175,.9)';
+        line(ctx, sx, py, xe, py);
+        ctx.lineWidth = Math.max(0.5, w * 0.4);
+        ctx.strokeStyle = 'rgba(255,255,255,.6)';
+        line(ctx, sx, py - w * 0.2, xe, py - w * 0.2);
       }
-      const startFret = Math.round(geo.F0) + 1;
-      if (!real) { // braço pequeno com as casas dele: a 1ª casa escrita ao lado
-        if (startFret > 1) {
-          ctx.fillStyle = `rgba(255,255,255,${(0.8 * alpha).toFixed(3)})`;
-          ctx.font = `700 ${Math.round(clamp(11 * Math.sqrt(k / 0.5), 9, 13))}px ${SANS}`;
-          ctx.textAlign = 'right';
-          ctx.textBaseline = 'middle';
-          ctx.fillText(`${startFret}ª`, x0 - 4, (y0 + y1) / 2);
-        }
-        return;
-      }
-      // nome das cordas à esquerda (aceso se o acorde de agora toca nela) e o número das casas embaixo
+      // o braço continua depois das casas à vista e some aos poucos (apaga o canvas: vale em qualquer fundo)
+      const fd = compact ? 36 : 70;
+      const fade = ctx.createLinearGradient(xe - fd, 0, xe, 0);
+      fade.addColorStop(0, 'rgba(0,0,0,0)');
+      fade.addColorStop(1, 'rgba(0,0,0,1)');
+      ctx.save();
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.fillStyle = fade;
+      ctx.fillRect(xe - fd, ny0 - 2, fd + 1, bh + 4);
+      ctx.restore();
+      // nome das cordas na cabeça (aceso se o acorde de agora toca nela) e o número das casas embaixo
       const sh = cur ? shapeOf(cur, geo.inst) : null;
-      const fs = Math.min(compact ? (narrow ? 11 : 12) : narrow ? 12 : 15, geo.gap * 0.8);
+      const fs = Math.min(compact ? (narrow ? 11 : 12) : narrow ? 12 : 15, gap * 0.8);
+      ctx.textAlign = 'right';
       ctx.textBaseline = 'middle';
+      const tx = nx0 - geo.R * 1.9 - 6;
       for (let i = 0; i < n; i++) {
-        const plays = !!(sh && sh.frets && sh.frets[i] !== null);
-        ctx.fillStyle = plays ? rgba(col, 1) : 'rgba(255,255,255,.7)';
+        const plays = !!(sh && sh.frets && sh.frets[i] !== null), ty = geo.sy(i) + 0.5;
         ctx.font = `${plays ? 800 : 600} ${Math.round(fs)}px ${SANS}`;
-        // deitado: à esquerda da pestana do braço; em pé: embaixo dela, debaixo de cada corda
-        this.txt(cfg.names[i], nx0 - geo.R * 1.9 - 6, geo.sy(i) + 0.5, 'right', 'middle', 'center', 'top');
+        if (head > 0) { // fundo da cor da cabeça: as cordas passam por trás do nome
+          const tw = ctx.measureText(cfg.names[i]).width;
+          ctx.globalAlpha = head;
+          ctx.fillStyle = '#1a1a1a';
+          roundRect(ctx, tx - tw - 4, ty - fs * 0.62, tw + 8, fs * 1.24, 4);
+          ctx.fill();
+          ctx.globalAlpha = 1;
+        }
+        ctx.fillStyle = plays ? rgba(col, 1) : 'rgba(255,255,255,.7)';
+        ctx.fillText(cfg.names[i], tx, ty);
       }
       ctx.fillStyle = 'rgba(255,255,255,.45)';
       ctx.font = `700 ${compact ? 10 : narrow ? 11 : 13}px ${SANS}`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
       for (let F = Math.max(1, Math.ceil(geo.F0 + 0.5)); F <= Math.floor(geo.F1 + 0.5); F++) {
-        const mx = (geo.fx(F - 1) + geo.fx(F)) / 2;
+        const mx = (fx(F - 1) + fx(F)) / 2;
         if (mx < nx0 || mx > nx1) continue;
-        // deitado: embaixo do braço; em pé: à direita dele
-        this.txt(String(F), mx, ny1 + 3, 'center', 'top', 'left', 'middle');
+        ctx.fillText(String(F), mx, ny1 + 3);
       }
     }
 

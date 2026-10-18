@@ -1681,7 +1681,7 @@
     };
   }
 
-  // Modo Show: pista em pé do instrumento escolhido nos botões em cima dela
+  // Modo Show: pista grande (braço deitado) do instrumento escolhido nos botões em cima dela
   function hwSource() {
     if (!S.an || !S.showOn) return null;
     const voice = S.hwInst === 'voz', g = S.game;
