@@ -47,7 +47,7 @@
     audio: {}, master: null, playing: false, raf: 0, lastSync: 0, actx: null, analyser: null,
     speed: 1, volume: 1, muted: false, syncMs: 0, pos: 0, useBuffers: false, bufs: null, srcs: null,
     // no celular a partitura começa menor (cabem mais compassos na largura da tela)
-    level: 'simples', zoom: window.matchMedia('(max-width: 700px)').matches ? 0.7 : 1, osmd: null, cTimes: [], cIdx: 0, sheetStale: false,
+    level: 'simples', levelPref: 'simples', zoom: window.matchMedia('(max-width: 700px)').matches ? 0.7 : 1, osmd: null, cTimes: [], cIdx: 0, sheetStale: false,
     loopN: 0, loopM: 0, loopStart: 0, loopEnd: 0, click: false,
     lastBeat: -1, chordIdx: -2, measure: -1, beat: -2, chips: [], dragging: false,
     pollTimer: 0, libTimer: 0, userScrollAt: 0, filter: 'all', query: '', stageOn: false,
@@ -436,11 +436,11 @@
         ? `Não achei ${info.article} nesta gravação`
         : `Refaça a análise (menu ⋯) para ver ${info.article} nota por nota`);
     }
-    if (isInstrument(S.level) && !instrumentNotes(S.level).length) {
-      S.level = 'simples';
-      document.querySelectorAll('#levelSeg .chip').forEach((x) => x.classList.toggle('on', x.dataset.level === 'simples'));
-      updateDownloadLink();
-    }
+    // abre no último nível que a pessoa escolheu; instrumento que esta música não tem cai no Simples só nela,
+    // sem esquecer a escolha (a próxima música que tiver o instrumento abre nele)
+    S.level = isInstrument(S.levelPref) && !instrumentNotes(S.levelPref).length ? 'simples' : S.levelPref;
+    markLevel();
+    updateDownloadLink();
     S.vIdx = -2;
     loadMix(m.id);
     useStems(an.stems);
@@ -502,7 +502,21 @@
     return (S.an.instrumentos && S.an.instrumentos[lv]) || [];
   }
 
-  // "Simples" junta as trocas rápidas de acorde; "Detalhada" mostra todas.
+  // Nível escolhido, guardado neste navegador (`pv.level`): antes toda música abria no Simples e parecia que
+  // o app só sabia os acordes da base. Valor guardado que não é um dos botões volta ao Simples (o padrão).
+  function savedLevel() {
+    let v = null;
+    try { v = localStorage.getItem('pv.level'); } catch (_) { /* sem memória no navegador */ }
+    return [...document.querySelectorAll('#levelSeg [data-level]')].some((b) => b.dataset.level === v) ? v : 'simples';
+  }
+  function saveLevel(lv) {
+    S.levelPref = lv;
+    try { localStorage.setItem('pv.level', lv); } catch (_) { /* sem memória no navegador: vale até fechar */ }
+  }
+  const markLevel = () => document.querySelectorAll('#levelSeg .chip').forEach((x) => x.classList.toggle('on', x.dataset.level === S.level));
+
+  // "Simples" = só os acordes da base, como na cifra (trocas rápidas juntadas); "Detalhada" = com os acordes
+  // de passagem.
   function chordsForLevel() {
     if (!S.an) return [];
     return (S.level !== 'simples' && S.an.chords_detalhado) || S.an.chords;
@@ -1651,7 +1665,7 @@
     if (!voiceCache.has(m)) voiceCache.set(m, m.map((n) => [n[0], n[1], [[n[2], 0, 0]]]));
     return voiceCache.get(m);
   }
-  // As pistas usam os acordes do nível escolhido (Simples = como na cifra; Detalhada = todas as trocas),
+  // As pistas usam os acordes do nível escolhido (Simples = só os da base; Detalhada = com os de passagem),
   // os mesmos da linha de acordes. (Com a lista detalhada sempre, o usuário achou "muita coisa pra tocar,
   // mudando muito rápido".)
   const pistaChords = () => S.chords || [];
@@ -3615,9 +3629,11 @@
 
     $('#levelSeg').onclick = async (e) => {
       const b = e.target.closest('[data-level]');
-      if (!b || b.dataset.level === S.level) return;
+      if (!b || b.disabled) return; // instrumento que esta música não tem
+      saveLevel(b.dataset.level); // também quando já está aberto (Simples no lugar de um instrumento que faltava)
+      if (b.dataset.level === S.level) return;
       S.level = b.dataset.level;
-      document.querySelectorAll('#levelSeg .chip').forEach((x) => x.classList.toggle('on', x === b));
+      markLevel();
       updateDownloadLink();
       if (!S.playerId) return;
       const loop = S.loopN;
@@ -3880,6 +3896,8 @@
     applyMix();
     applySpeed();
     loadSync();
+    S.levelPref = S.level = savedLevel();
+    markLevel();
     const library = loadLibrary();
     const c = await config;
     S.visualHigh = !!(c && c.plano && c.plano.visual === 'alta'); // máquina forte: animações em resolução cheia, 60 quadros

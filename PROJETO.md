@@ -46,7 +46,7 @@ Plano de negócio (Claude Docs): https://claude.ai/code/artifact/d81bf2c1-bd90-4
 
 Ferramenta de desenvolvimento: `tools/avaliar_cifras.py` (a "prova das cifras"). Compara os acordes de cada música com o gabarito em `data/gabarito/<id>.json` (só nomes de acordes, sem letra) e dá a nota em 4 níveis: raiz, maior/menor, com baixo e sétimas. **Toda mudança nos acordes precisa subir a média sem derrubar nenhuma música.**
 
-Acordes por tempo usam Viterbi com custo de troca por posição no compasso (barato no 1 e no 3). Dois níveis: **simples** (junta trocas rápidas) e **detalhado** (mostra todas).
+Acordes por tempo usam Viterbi com custo de troca por posição no compasso (barato no 1 e no 3). Dois níveis: **simples** (só os acordes da base, como na cifra: junta trocas rápidas) e **detalhado** (com os acordes de passagem que o áudio sustenta; não é toda troca que o modelo ouve: a troca é decidida uma vez por tempo da grade). Nos acordes reconhecidos (do áudio ou da gravação de referência) o simples troca 9/11/13 pela sétima; com cifra colada os dois níveis usam os nomes dela, e o trecho fora da cifra usa os acordes do detalhado nos dois níveis (ali o simples também tem acordes de 1 tempo e com extensões).
 
 ### Dados de cada música (`data/songs/<id>/`)
 
@@ -248,9 +248,10 @@ Pronto e testado:
   música), andam em velocidade constante (dois compassos para atravessar o braço) com o nome do acorde em
   cima; o acorde de agora fica na cor da música enquanto soa. Acorde fora das casas à vista anda com as casas
   dele. Formação = a mesma do cartão "Como tocar" (`shapeFor` no `chords.js`). Teclado: o mesmo com um
-  teclado. As pistas usam sempre a lista **detalhada** de acordes (no Simples o show mostrava bem menos); o
-  microfone confere a lista que está na tela (Pista: detalhada; Partitura: a do nível); a Voz e o jogo de
-  melodia no show usam a melodia detalhada.
+  teclado. As pistas usam os acordes do **nível escolhido**, os mesmos da linha de acordes (Simples = só os da
+  base; Detalhada e instrumentos = com os de passagem; com a detalhada sempre, o usuário achou "muita coisa pra
+  tocar, mudando muito rápido"); o microfone confere essa mesma lista; a Voz e o jogo de melodia no show usam a
+  melodia detalhada.
   - **Modo Show**: botões "Pista | Partitura" (guardado, `pv.showView`; padrão Pista); Violão/Cavaco/Baixo/
     Teclado/Voz em cima (Voz = melodia caindo sobre teclas). Com o jogo valendo pontos: indicadores do Guitar
     Hero em cima (pontos, multiplicador até x4 com anel, acertos seguidos, medidor da plateia); acerto do
@@ -298,12 +299,42 @@ Pronto e testado:
   esteira: pausa de vários compassos travando (multirest desligado + pedaço que falha não repete), emenda entre
   pedaços sem pulo, nota longa no cartão "Teclado agora". Ficou de fora: cada pedaço da esteira ainda passa pela
   formatação do OSMD da música toda (medido: 1 compasso ~56 ms, 8 ~0,8 s no violão cheio; a Pista não usa isso).
+- **Nível guardado (falta conferir na tela).** Toda música abria no Simples (nas que só têm os acordes do áudio,
+  nenhum acorde de 1 tempo) e o usuário achava que o app só sabia os acordes da base. Agora o nível escolhido fica
+  guardado no navegador (`pv.level`; valor estranho = Simples, o padrão de quem nunca escolheu) e cada música abre
+  nele; instrumento que a música não tem cai no Simples só naquela música, sem esquecer a escolha. Dicas dos
+  botões corrigidas: Simples = só os acordes da base, como numa cifra; Detalhada = com os acordes de passagem
+  (antes dizia "todas as trocas", o que não é verdade).
+- **Samba com acordes faltando (18/10/2026).** O usuário: "tá faltando muita nota, tá só a base". Auditoria
+  (scripts `ss_*` no %TEMP%) achou onde o detalhe se perdia e foi corrigido, medido na prova:
+  - **Grade em meio andamento** (Viola de Bandoleira lida a 60 bpm, o samba é ~120, com o "1" no meio do tempo):
+    o acorde só podia trocar a cada 1 s e 40% das trocas que o modelo ouve sumiam. `analysis.check_level`, logo
+    depois do `track_beats`: se a banda aguda da bateria tem 7+ batidas por tempo E as trocas de acorde caem no
+    meio do tempo, dobra a grade. Dispara só nela (as outras 3 saem com a grade idêntica). Viola: Simples 75 → 123
+    acordes, Detalhado 101 → 135; aparecem as passagens que o modelo ouvia (Em7(9) → F♯7 → Bm7).
+  - **Modelo de acordes ouvindo só a harmonia** (violão, teclado, outros e 0,6 do baixo; antes a mistura com voz
+    e bateria). O ritmo (trocas, compasso, `check_level`) continua na mistura, as grades não mudam, e a cifra
+    colada continua encaixando na mistura. Onde as partes dão "sem acorde" mas a harmonia não está calada (violão
+    baixinho), vale a mistura (`detect_chords(fallback=...)`; sem isso a Viola ficava 24 s sem acorde).
+    Estonteante contra a cifra completa: F1 das sétimas 42 → 49% (Detalhado), raiz 65 → 70% (Simples). Um vencedor
+    contra a gravação do usuário, tempo a tempo: raiz 51 → 60%, trocas achadas 59 → 78%.
+  - **Gravação de referência alisava 7 a 9 vezes mais que a análise** e apagava as passagens que o usuário toca:
+    agora usa os mesmos custos, o mesmo `_drop_blips` e o mesmo `SIMPLE_KIND`; tempos "sem acorde" nas pontas
+    ficam fora do trecho. Um vencedor: 22 → 35 acordes no trecho dele (voltam Em7-A7, Dm7, Em7(♭5)-A7).
+  - **Prova** (`tools/avaliar_cifras.py`): mede o que o app ouviu (`chords_auto` também com referência), recall,
+    precisão e F1, os dois níveis, junta acordes iguais seguidos antes de alinhar, `score_lists` para testar
+    listas em memória e a comparação tempo a tempo com a gravação de referência. A precisão de gabarito "trecho"
+    sai marcada (não é confiável).
+  - Testado e **não adotado**: tirar a preferência pelo tom das dominantes secundárias (com o modelo nas partes
+    não mudou nada além de ±1 ponto). Vocabulário maior (tétrades invertidas) pesa pouco (0-3% dos tempos).
+  - A Viola mudou de tom para Lá menor (relativo de Dó: Am7 e C6 têm as mesmas notas; a música termina em Am).
+  - As 4 músicas foram reprocessadas (backup em %TEMP%\ss_backup; `ss_restore.py <id>` volta).
 
 Próximos passos (nesta ordem):
 0. O usuário testar a pista no celular de verdade e no PC fraco (i5-3470) e dizer se a velocidade e a quantidade
    de notas (batida de violão em semicolcheias) estão boas de ler.
 1. **Gabarito com 10 a 15 músicas** (o usuário manda MP3 + cifra do Cifra Club; guardar só os acordes, mais compasso e BPM). Só com isso dá para melhorar acordes e compasso sem remendo. Marcar no gabarito se a cifra é simplificada ou completa (a prova "completo" só vale para as completas). "Não Vou Entregar" (Belo) está no app sem cifra: o usuário toca e vai conferir de ouvido.
-2. Compasso: tornar `estimate_meter` estável e medir contra o gabarito; acordes que trocam no meio do tempo quando o tempo é lento.
+2. Compasso: tornar `estimate_meter` estável e medir contra o gabarito (o `check_level` corrige o caso do samba em meio andamento, calibrado com uma música só: conferir com mais sambas, baladas e 12/8). Gabarito com tempo e com as passagens (a gravação do usuário tocando serve).
 3. Baixo: usar o baixo transcrito para inversões que a gravação mostra (validar no gabarito).
 4. Testar no notebook com placa de vídeo (separação máxima, letra `large-v3`) e o instalador numa máquina limpa.
 6. Testar "Corrigir letra" e o Modo Show valendo pontos com microfone real.

@@ -9,9 +9,10 @@ Como:
 1. alinha a gravação da pessoa com a parte de harmonia da música (croma + DTW com a inclinação presa entre
    1/2 e 2: andamentos parecidos, a pessoa pode começar e parar em qualquer ponto);
 2. pontua os acordes da gravação dela em cada tempo da música (o mesmo modelo de vocabulário grande) e
-   escolhe um acorde por tempo com custo para trocar, menor no 1 e no 3 do compasso; no Simples o custo é
-   bem maior e os nomes ficam como na cifra (sem 9ª, 11ª, 13ª); no Detalhado as notas que ela tocou (Basic
-   Pitch) decidem 7ª e extensões, como na análise normal;
+   escolhe um acorde por tempo com os mesmos custos de troca da análise normal (menores no 1 e no 3 do
+   compasso; antes eram 7 a 9 vezes maiores e apagavam as passagens que ela toca, como o II-V de um tempo
+   cada); no Simples o acorde de um tempo só junta com o vizinho e os nomes ficam como na cifra (sem 9ª,
+   11ª, 13ª); no Detalhado as notas que ela tocou (Basic Pitch) decidem 7ª e extensões, como na análise;
 3. no trecho coberto, troca os acordes da análise por esses.
 Guarda em work/referencia.json; a próxima análise da música aplica de novo."""
 import json
@@ -79,11 +80,10 @@ def align(ref, harm):
     return np.array(keys) * fs, np.array([np.median(by_ref[i]) for i in keys]) * fs, cost
 
 
-#  Troca de acorde por tempo do compasso (1º, 2º, 3º, 4º): no 1 e no 3 custa menos, como a análise faz.
-#  No Simples custa bem mais: fica como na cifra, sem as trocas de passagem de um tempo só.
-CHANGE = {"detalhado": (2.0, 6.0, 3.5, 6.0), "simples": (5.0, 14.0, 9.0, 14.0)}
-# No Simples, o nome fica como na cifra: sem 9ª, 11ª e 13ª (a sétima fica)
-SIMPLE_KIND = {"9": "7", "11": "7", "13": "7", "maj9": "maj7", "m9": "m7"}
+#  Por nível: custo de trocar de acorde por tempo do compasso (1º, 2º, 3º, 4º) e quanto um acorde de um tempo
+#  só precisa ganhar dos dois vizinhos para ficar (None = sempre junta). Os mesmos da análise
+#  (analysis.detect_chords, modelo de vocabulário grande): a gravação da pessoa é limpa, não precisa de mais.
+CHANGE = {"simples": ((0.6, 2.4, 1.0, 1.8), None), "detalhado": ((0.3, 0.9, 0.5, 0.7), 0.7)}
 
 
 def _beat_scores(L, song_t, ref_t, grid):
@@ -104,29 +104,30 @@ def _beat_scores(L, song_t, ref_t, grid):
     return cover[0], np.stack(rows)
 
 
-def _viterbi(S, first, change):
-    """Um acorde por tempo, com custo para trocar (menor no 1 e no 3 do compasso)."""
-    n, K = S.shape
-    dp = S[0].copy()
-    back = np.zeros((n, K), dtype=np.int32)
-    for i in range(1, n):
-        pen = change[(first + i) % 4]
-        best = int(dp.argmax())
-        move = dp[best] - pen
-        take = move > dp
-        back[i] = np.where(take, best, np.arange(K))
-        dp = np.where(take, move, dp) + S[i]
-    path = np.zeros(n, dtype=int)
-    path[-1] = int(dp.argmax())
-    for i in range(n - 1, 0, -1):
-        path[i - 1] = back[i, path[i]]
-    return path
+def _levels(S, b0, grid, key, played):
+    """Um acorde por tempo em cada nível, do jeito da análise (mesmo Viterbi, mesma limpeza dos acordes de um
+    tempo só, mesmos trechos). Devolve {"simples": trechos, "detalhado": trechos}."""
+    from . import analysis as A
+    from . import lvcr
+    labels = lvcr.vocabulary()
+    pos = (b0 + np.arange(len(S))) % 4  # tempo do compasso (a grade começa no 1)
+    out = {}
+    for level, (pen, keep) in CHANGE.items():
+        path = A._drop_blips(A._viterbi(S, np.array(pen)[pos]), S, keep)
+        per_beat = [labels[p] for p in path]
+        if level == "simples":  # o nome fica como na cifra: sem 9ª, 11ª e 13ª
+            per_beat = [None if lab is None else (lab[0], A.SIMPLE_KIND.get(lab[1], lab[1])) + tuple(lab[2:])
+                        for lab in per_beat]
+        segs = A.chord_segments(per_beat, None, grid, b0, key)
+        if level == "detalhado":
+            A.refine_with_notes(segs, played, key)
+        out[level] = segs
+    return out
 
 
 def song_chords(sid, path):
     """Acordes da gravação da pessoa nos tempos da música, nos dois níveis:
     ({"simples": trechos, "detalhado": trechos}, 1º tempo coberto, tempo depois do último)."""
-    from . import analysis as A
     from . import lvcr
     from . import pipeline as P
     from . import violao as V
@@ -140,36 +141,20 @@ def song_chords(sid, path):
     if cost > MAX_COST:
         raise ValueError("Não reconheci essa gravação como esta música (o tom é o mesmo?).")
     L = lvcr.chord_log_probs(lvcr.frame_probs(ref))
-    labels = lvcr.vocabulary()
     grid = np.asarray(an["grid"])
-    key = an["key"]
     b0, S = _beat_scores(L, song_t, ref_t, grid)
-    b1 = b0 + len(S)
+    # Tempos das pontas em que ela ainda não tocava (ou já tinha parado) ficam com os acordes da análise, em vez
+    # de "sem acorde" por cima deles: o 1º tempo coberto costuma pegar só o comecinho da gravação, em silêncio
+    tocou = np.flatnonzero(S.argmax(axis=1) != S.shape[1] - 1)  # a última coluna é "sem acorde"
+    if not len(tocou):
+        raise ValueError("Não ouvi acordes nessa gravação.")
+    S, b0 = S[tocou[0]:tocou[-1] + 1], b0 + int(tocou[0])
     # notas que a pessoa tocou, já nos tempos da música: decidem 7ª e extensões no Detalhado
     played = []
     for st, en, m, amp in V.transcribe(ref):
         if 38 <= m <= 88:
             played.append((float(np.interp(st, ref_t, song_t)), float(np.interp(en, ref_t, song_t)), m, amp))
-    out = {}
-    for level, change in CHANGE.items():
-        path_ = _viterbi(S, b0, change)
-        segs, s = [], 0
-        for i in range(1, len(path_) + 1):
-            if i == len(path_) or path_[i] != path_[s]:
-                lab = labels[path_[s]]
-                bs, be = b0 + s, b0 + i
-                seg = {"start_beat": bs, "end_beat": be, "start": float(grid[bs]), "end": float(grid[min(be, len(grid) - 1)])}
-                if lab is None:
-                    seg.update(kind="N", root=None, bass=None, ext=[], label="N.C.", display="—", spoken="sem acorde")
-                else:
-                    kind = SIMPLE_KIND.get(lab[1], lab[1]) if level == "simples" else lab[1]
-                    A.name_chord(seg, lab[0], kind, lab[2], [], key)
-                segs.append(seg)
-                s = i
-        if level == "detalhado":
-            A.refine_with_notes(segs, played, key)
-        out[level] = segs
-    return out, b0, b1
+    return _levels(S, b0, grid, an["key"], played), b0, b0 + len(S)
 
 
 def overlay(chords, segs, b0, b1):

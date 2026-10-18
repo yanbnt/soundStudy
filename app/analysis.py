@@ -379,6 +379,71 @@ def _offbeat(times, low):
     return off > on * 1.2
 
 
+def check_level(times, bpm, sub, changes, drums):
+    """Confere se a grade não ficou na metade do andamento; se ficou, põe o meio de cada tempo (dobra).
+
+    No samba e no pagode o surdo marca forte no 2 (e no 4): o rastreador pode contar só os surdos, e a
+    grade sai com a metade do andamento (Viola de Bandoleira: grade a 60, o samba anda a ~120), com o "1"
+    do compasso caindo no meio dos tempos dela. Aí metade das trocas de acorde fica no meio do tempo e o
+    acorde, decidido uma vez por tempo, perde as trocas rápidas. Dois sinais, e os dois precisam bater:
+    - o pandeiro/chimbal (bateria acima de 2 kHz) divide o tempo em ~8 partes, quando o normal é 4
+      (semicolcheias) ou 2; medido na música inteira (em trechos de 30 s às vezes dá 4);
+    - as trocas de acorde caem, em média, longe do tempo (fase média entre 0,1 e 0,6 do tempo).
+    Medido nas 4 músicas do app: a Viola dá 7,8 e 0,34; as outras, de 2 a 4,1 e de 0,83 a 0,89.
+    Só em 4/4 e se o dobro continuar contável (até 170 BPM). Sem bateria (ou só silêncio) fica como está.
+    Depois o detect_chords escolhe o "1" do compasso na grade nova, como sempre.
+    Devolve (tempos, BPM): os mesmos ou com os meios inseridos e o BPM dobrado."""
+    times = np.asarray(times, dtype=float)
+    if sub != 2 or 2 * bpm > 170 or len(times) < 16 or drums is None:
+        return times, bpm
+    phase = _change_phase(times, changes)  # o barato primeiro: só ouve a bateria se os acordes apontarem
+    if phase is None or not 0.1 <= phase <= 0.6:
+        return times, bpm
+    fast = _fast_period(np.asarray(drums, dtype=np.float32))
+    if fast is None or float(np.median(np.diff(times))) / fast < 7:
+        return times, bpm
+    mids = (times[:-1] + times[1:]) / 2
+    return np.sort(np.r_[times, mids]), 2 * bpm
+
+
+def _change_phase(times, changes):
+    """Fase média (circular, 0..1) das trocas de acorde dentro dos tempos: 0 = em cima do tempo,
+    0,5 = no meio. None com poucas trocas."""
+    ch = np.asarray(changes if changes is not None else [], dtype=float)
+    ch = ch[(ch > times[0]) & (ch < times[-1])]
+    if len(ch) < 8:
+        return None
+    frac = np.interp(ch, times, np.arange(len(times))) % 1
+    return float(np.angle(np.mean(np.exp(2j * np.pi * frac))) / (2 * np.pi) % 1)
+
+
+def _fast_period(drums):
+    """Período (s) da divisão mais rápida que se repete na bateria aguda (pandeiro, chimbal: acima de
+    2 kHz), com o mesmo pente de 8 múltiplos do estimate_meter, de 0,07 a 0,34 s. None sem batida."""
+    if len(drums) < 10 * SR or float(np.sqrt(np.mean(drums ** 2))) < 1e-3:
+        return None
+    hop = 256
+    fps = SR / hop
+    mel = librosa.feature.melspectrogram(y=drums, sr=SR, hop_length=hop, n_mels=64, fmax=SR / 2)
+    high = librosa.mel_frequencies(n_mels=64, fmax=SR / 2) >= 2000
+    env = librosa.onset.onset_strength(S=librosa.power_to_db(mel)[high], sr=SR, hop_length=hop)
+    e = env - env.mean()
+    ac = librosa.autocorrelate(e, max_size=int(4 * fps))
+    if ac[0] <= 1e-9:
+        return None
+    ac = ac / (ac[0] + 1e-9)
+
+    def at(sec):
+        lag = int(round(sec * fps))
+        return float(ac[max(1, lag - 2):lag + 3].max()) if lag + 3 < len(ac) else 0.0
+
+    cands = np.arange(0.07, 0.34, 1 / fps)
+    comb = np.array([np.mean([at(k * c) for k in range(1, 9)]) for c in cands])
+    if comb.max() < 0.05:  # nada se repete: ruído ou vazamento, não é levada
+        return None
+    return float(cands[int(np.argmax(comb >= 0.92 * comb.max()))])  # o mais curto entre os quase empatados
+
+
 # ---------------------------------------------------------------- tom
 
 def make_key(tonic, mode):
@@ -497,12 +562,15 @@ def _viterbi(S, penalty):
     return path
 
 
-def detect_chords(harm, bass, times, key, mix=None, probs=None):
+def detect_chords(harm, bass, times, key, mix=None, probs=None, fallback=None):
     """Acorde de cada tempo e qual tempo é o "1" do compasso.
 
     O croma da harmonia (sem os ataques percussivos) é comparado com modelos de acorde; o baixo
     reforça a raiz e acordes fora do tom precisam de mais evidência. Depois um Viterbi escolhe a
     sequência: trocar de acorde custa caro nos tempos 2 e 4 e barato no 1 e no 3.
+
+    `fallback`: probabilidades do modelo na mistura, para os tempos em que as partes de harmonia
+    (`probs`) dão "sem acorde" mas a harmonia não está calada (violão baixinho).
 
     Devolve ({nível: lista de (raiz, tipo) ou None por tempo}, croma do baixo por tempo,
     fase do compasso).
@@ -537,6 +605,15 @@ def detect_chords(harm, bass, times, key, mix=None, probs=None):
     if probs is not None and probs[0] == "lv":
         # modelo de vocabulário grande: já traz baixo, sétimas e extensões
         S, labels = _lv_scores(probs[1], times, diat, home)
+        if fallback is not None and fallback[0] == "lv" and None in labels:
+            # Violão baixinho (Viola de Bandoleira, 14-21 s e 31-37 s: metade do volume do resto) faz o modelo
+            # ouvindo só as partes dizer "sem acorde"; a mistura ainda ouve o G, o A7, o G7. Nesses tempos vale a
+            # mistura, se a harmonia não estiver calada (só voz e percussão continua "sem acorde").
+            S2 = _lv_scores(fallback[1], times, diat, home)[0]
+            nc = labels.index(None)
+            med = np.median(energy[energy > 0]) if np.any(energy > 0) else 1
+            swap = (S.argmax(axis=1) == nc) & (S2.argmax(axis=1) != nc) & (energy > 0.15 * med)
+            S[swap] = S2[swap]
         pass1 = 1.5
         levels = (("simples", (0.6, 2.4, 1.0, 1.8), None),
                   ("detalhado", (0.3, 0.9, 0.5, 0.7), 0.7))

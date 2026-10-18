@@ -144,12 +144,24 @@ def analyze(sid, d, work, rep, title, duration, lyrics_model=None):
     harm = sum(y[n] for n in ("guitar", "piano", "other") if n in y)  # tudo o que faz harmonia
 
     rep.stage("rhythm")
-    mix = sum(y.values())  # o modelo de acordes ouve a mistura
-    probs = A.chord_probs(mix, progress=lambda f: rep(0.8 * f))
+    mix = sum(y.values())  # o ritmo ouve a mistura: onde os acordes trocam ajuda a achar o compasso e a grade
+    probs = A.chord_probs(mix, progress=lambda f: rep(0.4 * f))
+    # O acorde de cada tempo sai só das partes de harmonia (violão, teclado, outros e 0,6 do baixo, a mesma soma
+    # do croma do detect_chords): a voz e a bateria confundem o modelo. Medido em 18/10/2026, Detalhado: Um
+    # vencedor contra a gravação do usuário tocando, tempo a tempo, raiz 51% -> 60%, sétimas 36% -> 41%, trocas
+    # de raiz achadas 59% -> 78%; Estonteante contra a cifra completa, F1 da raiz igual (70%) e das sétimas
+    # 42% -> 49% (no Simples, raiz 65% -> 70%). O ritmo (trocas, compasso, check_level) continua na mistura:
+    # a grade não muda. O BTC (reserva, sem o modelo de vocabulário grande) não foi medido nas partes: fica na mistura.
+    hprobs = probs
+    if probs is not None and probs[0] == "lv":
+        hprobs = A.chord_probs(harm + 0.6 * y["bass"], progress=lambda f: rep(0.4 + 0.4 * f))
     # compasso como um músico contaria: pulsação, onde os acordes trocam e andamento confortável
-    period, sub = A.estimate_meter(y["drums"] + 0.5 * y["bass"] + 0.3 * harm, A.chord_change_times(probs))
+    changes = A.chord_change_times(probs)
+    period, sub = A.estimate_meter(y["drums"] + 0.5 * y["bass"] + 0.3 * harm, changes)
     times, bpm = A.track_beats(y["drums"] + 0.5 * y["bass"], duration,
                                low=y["drums"] + y["bass"], period=period)
+    # samba com o surdo forte no 2 pode sair na metade do andamento (o "1" no meio do tempo): dobra a grade
+    times, bpm = A.check_level(times, bpm, sub, changes, y.get("drums"))
     beat_ql = 1.5 if sub == 3 else 1.0  # sub: 2 = 4/4, 3 = 12/8
     rep(1)
 
@@ -157,13 +169,13 @@ def analyze(sid, d, work, rep, title, duration, lyrics_model=None):
     key = A.detect_key(harm + y["bass"] + 0.5 * y["vocals"])
     rep(0.2)
     tracks, bass_chroma, phase = A.detect_chords(harm + 0.6 * y["bass"], y["bass"],
-                                                 times, key, mix=mix, probs=probs)
+                                                 times, key, mix=mix, probs=hprobs, fallback=probs)
     # o tom de verdade é o que os acordes confirmam (o perfil de notas confunde tons vizinhos)
     by_chords = A.key_from_chords(tracks["detalhado"], key)
     if (by_chords["tonic"], by_chords["mode"]) != (key["tonic"], key["mode"]):
         key = by_chords
         tracks, bass_chroma, phase = A.detect_chords(harm + 0.6 * y["bass"], y["bass"],
-                                                     times, key, mix=mix, probs=probs)
+                                                     times, key, mix=mix, probs=hprobs, fallback=probs)
     write_meta(sid, key=key["display"],
                key_short=A.pretty(key["name"]) + ("m" if key["mode"] == "minor" else ""),
                bpm=round(bpm))
@@ -184,7 +196,10 @@ def analyze(sid, d, work, rep, title, duration, lyrics_model=None):
     played = mid(played_by.get("guitar", [])) + mid(played_by.get("piano", [])) + \
         mid(played_by.get("other", []), 0.5)  # "outros": cavaco e vazamentos, com peso menor
     A.refine_with_notes(chords["detalhado"], played, key)
-    # guardados para encaixar uma cifra colada depois, sem refazer a análise
+    # guardados para encaixar uma cifra colada depois, sem refazer a análise. As probabilidades guardadas são as
+    # da MISTURA (as mesmas das músicas antigas): com as das partes, o encaixe punha mais trechos "fora da cifra"
+    # (com o acorde ouvido) e a cifra colada aparecia menos (acordes da cifra na tela: Um vencedor 89% -> 78%,
+    # Estonteante 71% -> 68%). A gravação de referência não usa estas: alinha pelo croma das partes.
     _save_played(work, played)
     if probs is not None and probs[0] == "lv":
         _save_probs(work, probs[1])
@@ -361,7 +376,7 @@ def _load_harmony_inputs(work, y=None):
     else:
         if not lvcr.available():
             raise RuntimeError("O modelo de acordes (app/lvcr/models) não está instalado.")
-        probs = A.chord_probs(sum(y.values()))[1]
+        probs = A.chord_probs(sum(y.values()))[1]  # da mistura, como as que a análise guarda
         _save_probs(work, probs)
     nf = work / "notas_harmonia.json"
     if nf.exists():
