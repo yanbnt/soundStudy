@@ -277,13 +277,12 @@ Pronto e testado:
   grande de "Tocando agora", que ficou mais alto. Saiu o cartão "Violão agora" (notas ao vivo).
 - **Modo Show com o braço deitado de novo, com detalhes de violão.** O braço em pé (girado 90°) foi reprovado
   ("feio pra kct; bota daquele jeito deitado, bem bonito, com os detalhes de madeira do braço"). Agora o
-  Show e o "Tocando agora" usam o mesmo braço deitado, desenhado como um violão (`boardBase`): cabeça com
-  tarraxas (pino, eixo e borboleta; metade em cima, metade embaixo) e as cordas indo da pestana do braço até
-  o pino delas; escala de madeira mais clara no meio, com veios (`GRAIN`, presos às casas) e friso nas
-  bordas; marcações das casas 3/5/7/9/12/15/17 pequenas e entre as cordas; trastes de metal com brilho;
-  pestana de osso; cordas com sombra e brilho; o braço some aos poucos depois da última casa à vista. Os
-  nomes das cordas ficam na cabeça (com fundo, as cordas passam por trás). Tudo em cinzas; a cor da música
-  só no acorde. A cabeça some quando as casas à vista se afastam da 1ª casa.
+  Show e o "Tocando agora" usam o mesmo braço deitado, com detalhes de madeira (`boardBase`): escala mais
+  clara no meio, com veios (`GRAIN`, presos às casas) e friso nas bordas; marcações das casas
+  3/5/7/9/12/15/17 pequenas e entre as cordas; trastes de metal com brilho; pestana de osso; cordas com
+  sombra e brilho; o braço some aos poucos depois da última casa à vista. **Cortado na pestana, sem cabeça**:
+  a cabeça com as cordas indo até as tarraxas foi reprovada ("ficou muito feia"). Tudo em cinzas; a cor da
+  música só no acorde.
 - **Teclado na pista: as teclas do próximo acorde caem de cima** até o teclado na hora de tocar (pedido do
   usuário: "pra teclado as notas precisam vir de cima pra baixo, não tem jeito").
 - **Cavaco caía dentro do "violão".** O separador de 6 partes não tem cavaco: na Estonteante a parte "outros"

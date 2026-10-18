@@ -8,7 +8,7 @@
 // faixas de corda com bolinhas no jeito do Guitar Hero ("não precisa imitar; quero o desenho no braço"),
 // braços pequenos crescendo em perspectiva ("nada de zoom") e descendo de cima ("nada de cima para baixo;
 // as notas vêm chegando da direita para a esquerda"). Casas estreitas: 12 à vista (9 no celular).
-// O braço tem os detalhes de um violão de verdade (cabeça com tarraxas, madeira com veios, marcações, trastes).
+// O braço tem detalhes de madeira de violão (veios, marcações, trastes de metal), cortado na pestana (sem cabeça).
 // - Modo Show (orient 'v'): o braço deitado, grande (em pé foi reprovado: "feio"); com o jogo valendo pontos, os indicadores em cima (pontos, multiplicador,
 //   sequência, plateia e o retorno "Perfeito!/Errou"); o acerto do microfone (game.js confere cada tempo
 //   contra o acorde) solta raios do desenho daquele acorde.
@@ -330,7 +330,7 @@
       if (st.game && !compact) top = this.drawHud(st.game, col, top, narrow, st.flash, now) + 6;
       const nameSize = compact ? (narrow ? 15 : 17) : narrow ? 20 : 30;
       const padX = compact ? 4 : narrow ? 10 : 28;
-      const numH = keys ? 6 : compact ? 14 : narrow ? 22 : 28; // números das casas (e as tarraxas) embaixo do braço
+      const numH = keys ? 6 : compact ? 14 : narrow ? 16 : 20; // números das casas embaixo do braço
       const labelH = Math.round(nameSize * 0.7) + 6; // nome dos acordes que vêm, em cima do braço
       const room = Math.max(30, H - top - nameSize - 8 - labelH - numH);
       // o braço ocupa o quadro (nada desce de cima: as bolinhas vêm pela direita, dentro dele)
@@ -340,8 +340,7 @@
         : Math.min(room, Math.max(40, n * (compact ? (narrow ? 24 : 30) : narrow ? 30 : 40)));
       // à esquerda do braço: o nome das cordas e, antes da pestana do braço, os anéis (solta) e × (não toca)
       const rEst = clamp((boardH / n) * 0.4, 3, 17);
-      // (a cabeça do instrumento fica nesse espaço: comprida o bastante para as tarraxas)
-      const labelW = keys ? 0 : Math.max((compact ? (narrow ? 24 : 30) : narrow ? 30 : 40) + rEst * 1.9 + 6, boardH * (W < 480 ? 0.45 : 0.62));
+      const labelW = keys ? 0 : (compact ? (narrow ? 24 : 30) : narrow ? 30 : 40) + rEst * 1.9 + 6;
       const nx0 = padX + labelW, nx1 = W - padX;
       const ny1 = H - numH - 2, ny0 = ny1 - boardH;
       const nameY = top + 2;
@@ -358,7 +357,7 @@
         const R = clamp(Math.min(gap * 0.4, (fx(F1) - fx(F1 - 1)) * 0.3), 3, 17);
         return {
           keys: false, inst: st.inst, F0, F1, fx, gap, R, sy: (i) => ny0 + (i + 0.5) * gap,
-          dotX: (f) => fx(f - 1) + (fx(f) - fx(f - 1)) * 0.56, headL: padX, end: W - (compact ? 0 : padX * 0.4),
+          dotX: (f) => fx(f - 1) + (fx(f) - fx(f - 1)) * 0.56, end: W - (compact ? 0 : padX * 0.4),
         };
       };
       if (keys) {
@@ -468,11 +467,11 @@
       }
     }
 
-    // O braço (ou teclado). O braço tem os detalhes de um violão de verdade, como o do cartão "Como tocar"
-    // (o usuário: "bem bonito, com os detalhes de madeira do braço"): a cabeça com as tarraxas antes da
-    // pestana do braço, a escala de madeira com veios e friso nas bordas, as marcações das casas (pequenas e
+    // O braço (ou teclado). O braço tem os detalhes de madeira de um violão (o usuário: "bem bonito, com os
+    // detalhes de madeira do braço"): escala com veios e friso nas bordas, marcações das casas (pequenas e
     // entre as cordas, para não parecerem notas), trastes de metal, a pestana de osso e cordas com brilho.
-    // Tudo em cinzas: a cor da música fica só no acorde. Depois das casas à vista o braço some aos poucos.
+    // Cortado na pestana: a cabeça com cordas e tarraxas foi reprovada ("ficou muito feia"). Tudo em cinzas:
+    // a cor da música fica só no acorde. Depois das casas à vista o braço some aos poucos.
     boardBase(geo, cfg, n, col, cur, compact, narrow, nx0, nx1, ny0, ny1) {
       const ctx = this.ctx;
       if (geo.keys) {
@@ -491,63 +490,6 @@
       }
       const { gap, fx } = geo, bh = ny1 - ny0;
       const nutX = fx(0), atNut = nutX >= nx0 - 3, xs = Math.max(nx0, nutX), xe = geo.end;
-      // cabeça do instrumento com as tarraxas (some quando as casas à vista se afastam da pestana)
-      const head = clamp(1 - geo.F0 * 4, 0, 1);
-      if (head > 0) {
-        // a cabeça alarga logo depois da pestana (curva) e termina arredondada; as tarraxas saem das bordas
-        const hx0 = geo.headL, L = nutX - hx0, fl = clamp(gap * 0.2, 3, 10), rr = clamp(gap * 0.45, 4, 12);
-        const xc = nutX - L * 0.32; // onde a cabeça já está toda aberta
-        const pr = clamp(gap * (compact ? 0.16 : 0.2) * (geo.inst === 'baixo' ? 1.2 : 1), 2.5, 9);
-        ctx.globalAlpha = head;
-        ctx.beginPath();
-        ctx.moveTo(nutX, ny0);
-        ctx.quadraticCurveTo(nutX - L * 0.18, ny0, xc, ny0 - fl);
-        ctx.lineTo(hx0 + rr, ny0 - fl);
-        ctx.quadraticCurveTo(hx0, ny0 - fl, hx0, ny0 - fl + rr);
-        ctx.lineTo(hx0, ny1 + fl - rr);
-        ctx.quadraticCurveTo(hx0, ny1 + fl, hx0 + rr, ny1 + fl);
-        ctx.lineTo(xc, ny1 + fl);
-        ctx.quadraticCurveTo(nutX - L * 0.18, ny1, nutX, ny1);
-        ctx.closePath();
-        ctx.fillStyle = '#1a1a1a';
-        ctx.fill();
-        ctx.strokeStyle = 'rgba(255,255,255,.14)';
-        ctx.lineWidth = 1;
-        ctx.stroke();
-        // tarraxas: metade em cima, metade embaixo; cada uma com o pino na cabeça, o eixo e a borboleta.
-        // As cordas passam da pestana do braço até o pino delas (a de fora no pino mais perto da pestana).
-        const half = Math.ceil(n / 2), pa = hx0 + rr * 0.5 + pr, pb = xc - pr * 0.6;
-        const bw = pr * 1.35, bh2 = pr * 1.5, shaft = Math.max(2, pr * 0.45);
-        const pinX = (j) => (half > 1 ? pa + (j * (pb - pa)) / (half - 1) : (pa + pb) / 2);
-        const pinY = (s) => (s < 0 ? ny0 - fl + pr * 0.9 : ny1 + fl - pr * 0.9);
-        for (let i = 0; i < n; i++) {
-          const top = i < half, j = top ? half - 1 - i : i - half;
-          ctx.strokeStyle = 'rgba(175,175,175,.75)';
-          ctx.lineWidth = Math.max(0.6, cfg.widths[i] * (compact ? 0.6 : 0.85));
-          line(ctx, nutX, geo.sy(i), pinX(j), pinY(top ? -1 : 1));
-        }
-        for (let i = 0; i < half; i++) {
-          const px = pinX(i);
-          for (const s of [-1, 1]) {
-            const edge = s < 0 ? ny0 - fl : ny1 + fl;
-            ctx.fillStyle = '#5a5a5a'; // eixo
-            ctx.fillRect(px - pr * 0.22, s < 0 ? edge - shaft : edge, pr * 0.44, shaft);
-            const by = edge + s * (shaft + bh2 / 2); // borboleta
-            roundRect(ctx, px - bw / 2, by - bh2 / 2, bw, bh2, bw * 0.45);
-            ctx.fillStyle = '#bdbdbd';
-            ctx.fill();
-            ctx.fillStyle = 'rgba(255,255,255,.7)';
-            ctx.fillRect(px - bw * 0.22, by - bh2 * 0.32, Math.max(1, bw * 0.16), bh2 * 0.64);
-            ctx.beginPath(); // pino na cabeça
-            ctx.arc(px, pinY(s), pr * 0.42, 0, Math.PI * 2);
-            ctx.fillStyle = '#9a9a9a';
-            ctx.fill();
-            ctx.strokeStyle = '#000';
-            ctx.stroke();
-          }
-        }
-        ctx.globalAlpha = 1;
-      }
       // escala de madeira: mais clara no meio (o braço é arredondado), com veios e o friso nas bordas
       if (!this.wood || this.wood.y0 !== ny0 || this.wood.y1 !== ny1) {
         const g = ctx.createLinearGradient(0, ny0, 0, ny1);
@@ -633,25 +575,16 @@
       ctx.fillStyle = fade;
       ctx.fillRect(xe - fd, ny0 - 2, fd + 1, bh + 4);
       ctx.restore();
-      // nome das cordas na cabeça (aceso se o acorde de agora toca nela) e o número das casas embaixo
+      // nome das cordas à esquerda (aceso se o acorde de agora toca nela) e o número das casas embaixo
       const sh = cur ? shapeOf(cur, geo.inst) : null;
       const fs = Math.min(compact ? (narrow ? 11 : 12) : narrow ? 12 : 15, gap * 0.8);
       ctx.textAlign = 'right';
       ctx.textBaseline = 'middle';
-      const tx = nx0 - geo.R * 1.9 - 6;
       for (let i = 0; i < n; i++) {
-        const plays = !!(sh && sh.frets && sh.frets[i] !== null), ty = geo.sy(i) + 0.5;
+        const plays = !!(sh && sh.frets && sh.frets[i] !== null);
         ctx.font = `${plays ? 800 : 600} ${Math.round(fs)}px ${SANS}`;
-        if (head > 0) { // fundo da cor da cabeça: as cordas passam por trás do nome
-          const tw = ctx.measureText(cfg.names[i]).width;
-          ctx.globalAlpha = head;
-          ctx.fillStyle = '#1a1a1a';
-          roundRect(ctx, tx - tw - 4, ty - fs * 0.62, tw + 8, fs * 1.24, 4);
-          ctx.fill();
-          ctx.globalAlpha = 1;
-        }
         ctx.fillStyle = plays ? rgba(col, 1) : 'rgba(255,255,255,.7)';
-        ctx.fillText(cfg.names[i], tx, ty);
+        ctx.fillText(cfg.names[i], nx0 - geo.R * 1.9 - 6, geo.sy(i) + 0.5);
       }
       ctx.fillStyle = 'rgba(255,255,255,.45)';
       ctx.font = `700 ${compact ? 10 : narrow ? 11 : 13}px ${SANS}`;
