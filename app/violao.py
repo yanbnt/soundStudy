@@ -44,6 +44,42 @@ def transcribe(y, progress=None, hz=(75, 1400)):
     return BP.notes(out, onset_thresh=0.5, frame_thresh=0.3, min_note_ms=80, min_hz=hz[0], max_hz=hz[1])
 
 
+def split_high_strings(notes, other=()):
+    """O separador de 6 partes não tem faixa de cavaco: ele cai quase todo na parte "violão" (na Estonteante a
+    parte "outros" ficou quase em silêncio e 48% das notas do "violão" estavam acima do Sol4). Aqui as notas da
+    parte "violão" são divididas pela região e pela batida:
+    - acima do Lá#4 (MIDI 70): cavaco (o violão em 1ª posição chega até ~Lá4);
+    - batida só na região aguda (Ré4 para cima, 3 notas ou mais, sem nenhuma nota grave junto): o acorde
+      fechado do cavaco;
+    - o resto (tudo que vem com baixo, ou fica na região do violão): violão.
+    O cavaco junta isso com o que a parte "outros" trouxer (`other`), sem repetir a mesma nota.
+    Devolve (notas do violão, notas do cavaco)."""
+    notes = sorted(notes)
+    groups, cur = [], []
+    for n in notes:
+        if cur and n[0] - cur[0][0] > STRUM_S:
+            groups.append(cur)
+            cur = []
+        cur.append(n)
+    if cur:
+        groups.append(cur)
+    vio, cav = [], []
+    for g in groups:
+        low = any(m < 55 for _, _, m, _ in g)
+        high = sum(1 for _, _, m, _ in g if m >= 62)
+        for n in g:
+            m = n[2]
+            if m >= 70 or (m >= 62 and not low and high >= 3):
+                cav.append(n)
+            else:
+                vio.append(n)
+    merged = list(cav)
+    for n in other:
+        if not any(abs(n[0] - c[0]) < 0.05 and n[2] == c[2] for c in cav):
+            merged.append(n)
+    return vio, sorted(merged)
+
+
 def _drop_octave_ghosts(ev):
     """Instrumento de uma nota só (baixo): o Basic Pitch ouve o harmônico uma oitava acima junto com a
     nota (Ré3 em cima do Ré2 que o baixo toca). Nota com a oitava de baixo soando junto na maior parte

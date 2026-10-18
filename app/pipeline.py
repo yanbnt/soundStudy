@@ -219,12 +219,20 @@ def analyze(sid, d, work, rep, title, duration, lyrics_model=None):
     rep.stage("violao")  # cada instrumento nota por nota (violão, cavaco e baixo com corda e casa)
     tabs = {}
     insts = list(V.INSTRUMENTS.items())
+    # o cavaco cai quase todo na parte "violão" do separador: divide as notas dela pela região e pela batida
+    split = None
+    if "guitar" in y:
+        g_notes = played_by.get("guitar") or V.transcribe(y["guitar"], hz=V.VIOLAO["hz"])
+        o_notes = (played_by.get("other") or V.transcribe(y["other"], hz=V.INSTRUMENTS["cavaco"]["hz"])) if "other" in y else []
+        split = V.split_high_strings(g_notes, o_notes)
     for i, (name, inst) in enumerate(insts):
         stem = inst["stem"]
         if stem not in y:
             continue
         if stem == "bass":  # o baixo precisa da faixa grave (até ~35 Hz) que as outras partes não usam
             inst_notes = V.transcribe(y["bass"], hz=inst["hz"])
+        elif split and name in ("violao", "cavaco"):
+            inst_notes = split[0] if name == "violao" else split[1]
         else:
             inst_notes = played_by.get(stem) or V.transcribe(y[stem], hz=inst["hz"])
         t = V.assign_tab(V.attacks(inst_notes, grid, 2 * sub, inst=inst), inst)

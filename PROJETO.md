@@ -273,6 +273,15 @@ Pronto e testado:
     da gravação dela e usa esses acordes no trecho coberto (`work/referencia.json`; vale para a mesma grade de
     tempos; reanálise que muda a grade pede para mandar de novo). Aplicado na Um vencedor com a gravação do
     usuário (tempos 12 a 121): saem o F#m comprido e entram F7M, Dm7, C7M, Am, Bm7(b5), C#m7(b5)...
+- **Cartão "Como tocar" virou "Próximo"**, pequeno (nome + diagrama miniatura): o de agora já está no braço
+  grande de "Tocando agora", que ficou mais alto. Saiu o cartão "Violão agora" (notas ao vivo).
+- **Teclado na pista: as teclas do próximo acorde caem de cima** até o teclado na hora de tocar (pedido do
+  usuário: "pra teclado as notas precisam vir de cima pra baixo, não tem jeito").
+- **Cavaco caía dentro do "violão".** O separador de 6 partes não tem cavaco: na Estonteante a parte "outros"
+  ficou quase em silêncio e 48% das notas do "violão" estavam acima do Sol4. `violao.split_high_strings` divide
+  as notas da parte "violão": acima do Lá#4, ou batida só na região aguda (Ré4+, 3+ notas, sem grave junto) →
+  cavaco (somado ao que vier de "outros"); o resto → violão. Na análise (`pipeline.analyze`) e refeito nas 3
+  músicas por script, sem reprocessar.
 - **Revisão independente** (workflow com 37 agentes, 30 achados confirmados, todos tratados menos 1): cartão
   que sumia antes da hora, cartão maior que a pista em tela baixa, sus2 fora do diagrama, teclas marcadas
   invisíveis, pestana passando por corda que não toca (Fmaj7; corrigido em `fingering`, vale para o cartão do
