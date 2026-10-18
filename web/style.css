@@ -373,25 +373,15 @@ h1, h2, h3 { margin: 0; }
 .sync-reset { display: block; margin-top: 6px; padding: 0; border: 0; background: none; color: var(--text); font-size: 12px; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
 
 /* ---------- tocando agora ---------- */
-.now { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
 .card { background: var(--raise); border-radius: 12px; padding: 16px; min-height: 156px; }
 .card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .card-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .18em; color: var(--sub); }
 .card-label b { color: var(--text); }
-.now-body { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 4px; }
-.now-text { min-width: 0; }
-.now-chord { font-family: var(--display); font-weight: 650; font-size: clamp(42px, 4.6vw, 64px); letter-spacing: -.03em; line-height: 1.05; color: #fff; }
-.now-sub { color: var(--sub); font-size: 13px; margin-top: 6px; }
-.next-chord { font-family: var(--display); font-weight: 600; font-size: clamp(28px, 3vw, 38px); color: rgba(255, 255, 255, .8); }
 .diagram { flex: none; color: var(--text); }
-.now-pulse { display: flex; flex-direction: column; justify-content: space-between; }
-.beats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 14px 0 8px; }
-.beats i {
-  font-style: normal; height: 48px; border-radius: 10px; display: grid; place-items: center; font-weight: 800; font-size: 18px;
-  background: var(--raise-2); color: var(--faint); transition: background .08s, color .08s, transform .08s;
-}
-.beats i.on { background: var(--song-hi, #d9d9d9); color: var(--song-ink, #000); transform: scale(1.05); }
-.beats i.on:first-child { background: var(--song, #fff); box-shadow: 0 0 0 3px rgb(var(--song-rgb, 255 255 255) / .25); }
+/* pista deitada no lugar de "acorde agora / próximo": a altura vem do JS (depende de quantas cordas) */
+.track-card { min-height: 0; padding: 12px 14px 10px; }
+.track-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.track-canvas { display: block; width: 100%; height: 172px; touch-action: pan-y; }
 .chord-diagram .cd-fret, .chord-diagram .cd-string { stroke: rgba(255, 255, 255, .34); }
 .chord-diagram .cd-dot { fill: #fff; }
 .chord-diagram .cd-root { fill: #000; stroke: #fff; stroke-width: 2.6; }
@@ -719,7 +709,7 @@ h1, h2, h3 { margin: 0; }
 .premium-badge { font-size: 9.5px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; color: #000; background: #fff; border-radius: 4px; padding: 2px 6px; }
 
 /* palco à vista em cima, esteira da partitura embaixo; sem desfoque (pesa demais sem placa de vídeo) */
-.show { position: fixed; inset: 0; z-index: 200; display: grid; grid-template-rows: auto minmax(0, 1fr) clamp(200px, 36vh, 340px) auto auto; background: #000; color: var(--text); overflow: hidden; isolation: isolate; }
+.show { position: fixed; inset: 0; z-index: 200; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) clamp(200px, 36vh, 340px) auto auto; background: #000; color: var(--text); overflow: hidden; isolation: isolate; }
 .show-canvas { position: absolute; inset: 0; width: 100%; height: 100%; z-index: -1; display: block; }
 .show-media { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: -3; }
 /* foto do artista: puxa para o alto (onde costuma estar o rosto) e anda devagar, como numa câmera */
@@ -815,9 +805,33 @@ h1, h2, h3 { margin: 0; }
 .res-grid b { font-family: var(--display); font-size: 30px; font-weight: 650; font-variant-numeric: tabular-nums; }
 .res-grid span { font-size: 12px; color: var(--sub); }
 
+/* Modo Show: pista estilo Guitar Hero ocupando o meio da tela; a esteira de partitura fica como opção */
+.show-view { display: flex; padding: 3px; border-radius: 999px; background: rgba(0, 0, 0, .55); }
+.show-view button { height: 36px; padding: 0 14px; border: 0; border-radius: 999px; background: none; color: rgba(255, 255, 255, .78); font-size: 13px; font-weight: 700; }
+.show-view button.on { background: #fff; color: #000; }
+.hw-canvas, .hw-insts { display: none; }
+.show.hw { grid-template-rows: auto 0 minmax(0, 1fr) auto auto; }
+.show.hw .show-strip { margin: 0; border-radius: 0; background: transparent; }
+.show.hw .strip-track, .show.hw .strip-playhead, .show.hw .strip-loading { display: none; }
+.show.hw .hw-canvas { display: block; position: absolute; inset: 0; width: 100%; height: 100%; }
+.show.hw .hw-insts { display: flex; flex-wrap: wrap; gap: 6px; position: absolute; left: 16px; top: 8px; z-index: 1; }
+.hw-insts button { height: 32px; padding: 0 12px; border: 0; border-radius: 999px; background: rgba(0, 0, 0, .62); color: rgba(255, 255, 255, .8); font-size: 13px; font-weight: 700; }
+.hw-insts button.on { background: var(--song, #fff); color: var(--song-ink, #000); }
+
 @media (max-width: 900px) {
   .show-hud { position: static; grid-row: 2; width: auto; margin: 0 16px; flex-direction: row; flex-wrap: wrap; justify-content: center; align-self: start; }
   .intro-modes { grid-template-columns: 1fr; }
+  .show.hw { grid-template-rows: auto auto minmax(0, 1fr) auto auto; }
+  .show-view button { height: 32px; padding: 0 10px; font-size: 12px; }
+  .show.hw .hw-insts { left: 8px; top: 4px; }
+  .hw-insts button { height: 28px; padding: 0 10px; font-size: 12px; }
+}
+@media (max-width: 520px) {
+  /* celular: a barra de cima do show cabe na largura (a tela cheia já abre sozinha) */
+  .show-top { padding: 10px 12px; gap: 8px; }
+  .show-song-text { display: none; }
+  #btnShowFull { display: none; }
+  .show-actions { gap: 6px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -826,8 +840,6 @@ h1, h2, h3 { margin: 0; }
 }
 
 @media (max-width: 1100px) {
-  .now { grid-template-columns: 1fr 1fr; }
-  .now-current { grid-column: 1 / -1; }
   .nowbar { grid-template-columns: minmax(150px, 28%) minmax(0, 1fr) auto; }
   .range.vol { width: 70px; }
 }
@@ -928,14 +940,8 @@ h1, h2, h3 { margin: 0; }
   #levelSeg .chip { flex: none; height: 36px; padding: 0 16px; }
 
   /* tocando agora */
-  .now { grid-template-columns: 1fr 1fr; gap: 8px; }
-  .now-current { grid-column: 1 / -1; }
   .card { min-height: 0; padding: 12px; }
-  .now-chord { font-size: 46px; }
-  .next-chord { font-size: 26px; }
-  .beats { gap: 5px; margin: 10px 0 6px; }
-  .beats i { height: 36px; font-size: 15px; }
-  .now-pulse .now-sub { display: none; }
+  .track-card { padding: 10px 8px 8px; }
   #viewPlayer .hand-card { margin: 8px 0 0; }
   .chordline-wrap { padding: 8px 14px 6px; }
   .chip-chord { height: 40px; }

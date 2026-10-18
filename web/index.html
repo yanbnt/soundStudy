@@ -273,29 +273,13 @@
 
         <div class="content">
           <h2 class="sec-title">Tocando agora</h2>
-          <div class="now">
-            <div class="card now-current">
-              <div class="card-label">Acorde agora</div>
-              <div class="now-body">
-                <div class="now-text">
-                  <div class="now-chord" id="nowChord">—</div>
-                  <div class="now-sub" id="nowSub"></div>
-                </div>
-                <div class="diagram" id="nowDiagram"></div>
-              </div>
+          <!-- pista deitada: as notas correm até a linha, cada uma do tamanho que tem que durar -->
+          <div class="card track-card" id="trackCard">
+            <div class="track-head">
+              <span class="card-label" id="trackLabel">Melodia</span>
+              <span class="card-label">Compasso <b id="measureNum">1</b> de <span id="measureTotal">0</span></span>
             </div>
-            <div class="card now-next">
-              <div class="card-label">Próximo</div>
-              <div class="now-body">
-                <div class="next-chord" id="nextChord">—</div>
-                <div class="diagram small" id="nextDiagram"></div>
-              </div>
-            </div>
-            <div class="card now-pulse">
-              <div class="card-label">Compasso <b id="measureNum">1</b> de <span id="measureTotal">0</span></div>
-              <div class="beats" id="beats"><i>1</i><i>2</i><i>3</i><i>4</i></div>
-              <div class="now-sub">Conte junto com a bolinha acesa</div>
-            </div>
+            <canvas class="track-canvas" id="trackCanvas" aria-label="Pista com as notas que vêm aí e quanto tempo dura cada uma"></canvas>
           </div>
           <div class="card lyric-card" id="lyricCard" hidden>
             <div class="card-head">
@@ -424,6 +408,10 @@
       <div class="ss-item ss-energy"><span>Plateia</span><div class="meter"><i id="ssEnergy"></i></div></div>
     </div>
     <div class="show-actions">
+      <div class="show-view" role="group" aria-label="Como ver as notas">
+        <button id="viewPista" class="on">Pista</button>
+        <button id="viewPartitura">Partitura</button>
+      </div>
       <div class="menu-wrap">
         <button class="icon-btn lg" id="btnShowBg" title="Trocar o fundo" aria-label="Trocar o fundo"><svg class="i"><use href="#i-image"/></svg></button>
         <div class="menu" id="bgMenu" hidden>
@@ -450,6 +438,8 @@
   <div class="show-strip" id="showStrip">
     <div class="strip-track" id="stripTrack"><div class="strip-marks" id="stripMarks"></div></div>
     <div id="osmdShow"></div>
+    <canvas class="hw-canvas" id="hwCanvas" aria-label="Pista: as notas descem até a linha, uma faixa por corda"></canvas>
+    <div class="hw-insts" id="hwInsts" role="group" aria-label="Instrumento da pista"></div>
     <div class="strip-playhead" aria-hidden="true"></div>
     <div class="strip-loading" id="stripLoading">Preparando a partitura…</div>
   </div>
@@ -465,7 +455,7 @@
     <div class="intro-card">
       <span class="kicker">Modo Show</span>
       <h2>Você na roda</h2>
-      <p>A partitura passa na esteira, no tempo da música, e o samba toca junto com você.</p>
+      <p>As notas descem pela pista no tempo da música, uma faixa para cada corda, com a casa escrita na nota. O samba toca junto com você.</p>
       <div class="intro-actions">
         <button class="pill-green" id="btnShowStart">Começar o show</button>
       </div>
@@ -576,6 +566,7 @@
 <script src="/static/luzes.js"></script>
 <script src="/static/mesa.js"></script>
 <script src="/static/game.js"></script>
+<script src="/static/pista.js"></script>
 <script src="/static/app.js"></script>
 </body>
 </html>

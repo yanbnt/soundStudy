@@ -68,6 +68,7 @@ Acordes por tempo usam Viterbi com custo de troca por posição no compasso (bar
 | `stage.js` | Cena da roda de samba com músicos em silhuetas; `mono` tira a cor no fim do quadro (uma passada `saturation`) |
 | `mesa.js` | Cena **"mesa de samba"** sem pessoas, em P&B: lua sobre a baía, morros, bondinho, varal de lâmpadas, chapéu, tamborim, pandeiro, cavaquinho, chopp e partitura na mesa. Fundo padrão do Modo Show e da tela inicial |
 | `game.js` | Microfone: modo **acordes** (croma por tempo) e modo **melodia** (YIN, nota por nota) |
+| `pista.js` | **Pistas** em canvas (30 quadros): `orient 'v'` = pista do Modo Show estilo Guitar Hero (perspectiva, uma faixa por corda com a mais grave à esquerda, casa escrita na nota, batida repetida no compasso só com contorno; teclado/voz caem sobre um teclado); `orient 'h'` = pista deitada do "Tocando agora" (notas do tamanho que duram, corda mais grave em cima, acordes numa faixa por cima). Parada, só redesenha quando algo muda |
 | `vendor/` | OpenSheetMusicDisplay 1.9.0 e fontes (Figtree, Fraunces) |
 
 **Modo Show:** a partitura em pedaços de uma linha (`renderSingleHorizontalStaffline` com `drawFrom/UpToMeasureNumber`), colados lado a lado, desliza por baixo de uma linha fixa (tempo → posição x pelas notas de cada pedaço). A cena do palco é desenhada acima da esteira. Há fundo opcional com vídeo ou foto da própria pessoa (dura até fechar o app).
@@ -236,9 +237,20 @@ Pronto e testado:
 - **Cartão "Violão/Cavaco/Teclado agora"** muda no máximo uma vez por tempo (junta as notas do tempo, uma por
   corda); antes trocava a cada semicolcheia. O baixo segue nota a nota.
 
+- **Modo Show estilo Guitar Hero** (pedido do usuário): botões "Pista | Partitura" no alto (fica guardado,
+  `pv.showView`; padrão Pista). A pista desce em perspectiva no meio da tela, uma faixa por corda na ordem do
+  diagrama (6ª Mi grave à esquerda → 1ª Mi), a casa escrita em cada nota, acordes atravessando a pista, a linha de
+  tocar e a corda que soa na cor da música; botões Violão/Cavaco/Baixo/Teclado/Voz em cima da pista (o
+  desenho do acorde no HUD segue o instrumento). Acerto/erro do jogo pisca a linha. Com a pista a esteira de
+  partitura não é desenhada (nada de tranco).
+- **"Tocando agora" virou uma pista deitada** (o usuário pediu no lugar dos quadros "Acorde agora / Próximo"): as
+  notas correm até a linha, cada barra do tamanho que a nota dura; violão/cavaco/baixo com a casa em cada corda
+  (mais grave em cima, como no cartão do braço), teclado e níveis de melodia (voz) como teclas; os acordes passam
+  numa faixa por cima, o de agora na cor da música.
+
 Próximos passos (nesta ordem):
-0. **Modo Show estilo Guitar Hero** (pedido em 17/10/2026): pista vertical, notas descendo nas faixas das cordas
-   (Mi grave à esquerda, como no diagrama), casa escrita na nota; teclado como pista de teclas.
+0. O usuário testar a pista no celular de verdade e no PC fraco (i5-3470) e dizer se a velocidade e a quantidade
+   de notas (batida de violão em semicolcheias) estão boas de ler.
 1. **Gabarito com 10 a 15 músicas** (o usuário manda MP3 + cifra do Cifra Club; guardar só os acordes, mais compasso e BPM). Só com isso dá para melhorar acordes e compasso sem remendo. Marcar no gabarito se a cifra é simplificada ou completa (a prova "completo" só vale para as completas). "Não Vou Entregar" (Belo) está no app sem cifra: o usuário toca e vai conferir de ouvido.
 2. Compasso: tornar `estimate_meter` estável e medir contra o gabarito; acordes que trocam no meio do tempo quando o tempo é lento.
 3. Baixo: usar o baixo transcrito para inversões que a gravação mostra (validar no gabarito).

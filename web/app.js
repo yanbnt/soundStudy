@@ -1106,7 +1106,11 @@
   }
 
   // Diagramas no instrumento da partitura aberta (nos níveis de melodia, o violão).
-  const diagramInst = () => (isInstrument(S.level) ? S.level : 'violao');
+  // no Modo Show com a pista, o instrumento da pista
+  const diagramInst = () => {
+    if (S.showOn && S.showView === 'pista' && S.hwInst && S.hwInst !== 'voz') return S.hwInst;
+    return isInstrument(S.level) ? S.level : 'violao';
+  };
   const INST_NOW = { violao: 'Violão agora', baixo: 'Baixo agora', cavaco: 'Cavaco agora', teclado: 'Teclado agora' };
 
   // Níveis de instrumento: o cartão mostra as notas que ele está tocando agora na gravação (e apagadas as
@@ -1195,9 +1199,6 @@
     const real = c && c.kind !== 'N';
     const sub = real ? cap(c.spoken) : (ci < 0 ? 'Aperte o play' : 'Sem acorde aqui');
     const diagram = real ? ChordDiagram.forInstrument(c, diagramInst(), { width: 120, height: 140 }) : '';
-    $('#nowChord').textContent = real ? c.display : '—';
-    $('#nowSub').textContent = sub;
-    $('#nowDiagram').innerHTML = diagram;
     $('#stageChord').textContent = real ? c.display : '—';
     $('#stageSub').textContent = sub;
     $('#stageDiagram').innerHTML = diagram;
@@ -1214,10 +1215,8 @@
       // neckFor: com extensões, 5-, baixo com barra e tipos sem forma pronta (E5, 7(2)) também
       $('#handSvg').innerHTML = ChordDiagram.neckFor(h, 'violao', noteName);
     }
-    $('#nextChord').textContent = n ? n.display : '—';
     $('#stageNext').textContent = n ? n.display : '—';
     $('#hudNext').textContent = n ? n.display : '—';
-    $('#nextDiagram').innerHTML = n ? ChordDiagram.forInstrument(n, diagramInst(), { width: 92, height: 108 }) : '';
     const chip = S.chips[ci];
     if (chip) {
       chip.classList.add('on');
@@ -1351,7 +1350,10 @@
     S.sheetStale = false;
     $('#paperLoading').hidden = true;
     moveSheet(S.sheet, viewTime(), true);
-    if (S.showOn) loadStrip();
+    if (S.showOn) {
+      if (S.showView === 'partitura') loadStrip();
+      else { hwPickInst(); S.chordIdx = -2; }
+    }
   }
 
   const currentBeat = () => beatAt(S.master ? viewTime() : 0);
@@ -1697,6 +1699,96 @@
     ch.marks.appendChild(el);
   }
 
+  // ------------------------------------------------------------ pistas (pista.js)
+  // Pista deitada no "Tocando agora" (em cima da partitura) e pista estilo Guitar Hero no Modo Show.
+  // Notas no formato dos instrumentos: [tempo, duração, [[midi, corda, casa], ...]]; a voz vira o mesmo.
+  const voiceCache = new WeakMap();
+  function voiceTrack() {
+    const m = melodyNotes(); // a mesma melodia do jogo de melodia
+    if (!Array.isArray(m)) return [];
+    if (!voiceCache.has(m)) voiceCache.set(m, m.map((n) => [n[0], n[1], [[n[2], 0, 0]]]));
+    return voiceCache.get(m);
+  }
+  const trackNotes = (inst) => (inst === 'voz' ? voiceTrack() : instrumentNotes(inst));
+  const INST_LABEL = { violao: 'Violão', cavaco: 'Cavaco', baixo: 'Baixo', teclado: 'Teclado', voz: 'Voz' };
+  const TRACK_LABEL = {
+    violao: 'Violão · a casa em cada corda', cavaco: 'Cavaco · a casa em cada corda', baixo: 'Baixo · a casa em cada corda',
+    teclado: 'Teclado · as teclas', voz: 'Melodia · as notas da voz',
+  };
+  // quantos tempos aparecem pela frente (`sec` segundos de música)
+  const aheadBeats = (sec) => Math.max(3, Math.min(10, (sec * ((S.an && S.an.bpm) || 90)) / 60));
+  const narrowScreen = () => window.innerWidth <= 700;
+
+  // "Tocando agora": o instrumento do nível aberto; nos níveis de melodia, a voz
+  const trackInst = () => (isInstrument(S.level) ? S.level : 'voz');
+  function trackSource() {
+    if (!S.an || S.showOn) return null;
+    const inst = trackInst(), narrow = narrowScreen(), notes = trackNotes(inst);
+    if (S.trackShown !== notes || S.trackNarrow !== narrow) { // outra música ou instrumento: título e altura
+      S.trackShown = notes;
+      S.trackNarrow = narrow;
+      $('#trackLabel').textContent = TRACK_LABEL[inst];
+      $('#trackCanvas').style.height = Pista.Highway.flatHeight(inst, notes, narrow) + 'px';
+    }
+    return {
+      b: beatAt(viewTime()), ahead: aheadBeats(narrow ? 2.8 : 5.2), inst, notes,
+      chords: S.chords, color: S.songRgb, flash: null, names: noteName,
+    };
+  }
+
+  // Modo Show: pista vertical do instrumento escolhido nos botões em cima dela
+  function hwSource() {
+    if (!S.an || !S.showOn) return null;
+    return {
+      b: beatAt(viewTime()), ahead: aheadBeats(narrowScreen() ? 2.2 : 2.6), inst: S.hwInst, notes: trackNotes(S.hwInst),
+      chords: S.chords, color: S.songRgb, flash: S.hwFlash, names: noteName,
+    };
+  }
+  const hwChoices = () => ['violao', 'cavaco', 'baixo', 'teclado', 'voz'].filter((k) => trackNotes(k).length);
+  function renderHwInsts() {
+    $('#hwInsts').innerHTML = hwChoices()
+      .map((k) => `<button data-inst="${k}" class="${k === S.hwInst ? 'on' : ''}">${INST_LABEL[k]}</button>`).join('');
+  }
+  // o instrumento do nível aberto; no jogo de melodia, a voz; senão o violão (ou o que tiver)
+  function hwPickInst() {
+    const have = hwChoices();
+    const melody = S.gameOn && S.game.mode === 'melody' && have.includes('voz');
+    S.hwInst = melody ? 'voz' : isInstrument(S.level) && have.includes(S.level) ? S.level : have[0] || 'violao';
+    renderHwInsts();
+    return have.length > 0;
+  }
+
+  function savedShowView() {
+    try { return localStorage.getItem('pv.showView') === 'partitura' ? 'partitura' : 'pista'; } catch (_) { return 'pista'; }
+  }
+
+  function clearStrip() {
+    $('#osmdShow').innerHTML = '';
+    $('#stripMarks').innerHTML = '';
+    $('#stripTrack').querySelectorAll('.strip-chunk').forEach((c) => c.remove());
+    S.strip = null;
+    S.stripToken = (S.stripToken || 0) + 1; // cancela uma montagem em andamento
+  }
+
+  // Pista (estilo Guitar Hero) ou Partitura (a esteira); a escolha fica guardada
+  function setShowView(v, save) {
+    if (v === 'pista' && !hwPickInst()) v = 'partitura'; // música sem nenhuma nota para a pista
+    S.showView = v;
+    if (save) { try { localStorage.setItem('pv.showView', v); } catch (_) { /* sem armazenamento */ } }
+    $('#viewPista').classList.toggle('on', v === 'pista');
+    $('#viewPartitura').classList.toggle('on', v === 'partitura');
+    $('#show').classList.toggle('hw', v === 'pista');
+    S.chordIdx = -2; // o desenho do acorde segue o instrumento da pista
+    if (v === 'pista') {
+      clearStrip();
+      S.hw.start();
+    } else {
+      S.hw.stop();
+      if (!S.strip) loadStrip();
+    }
+    tick();
+  }
+
   // Fundo do show: a foto do artista (a capa da música, padrão), as luzes de show na cor da música, a mesa
   // de samba ou um vídeo/foto da própria pessoa. A escolha fica guardada; o vídeo/foto vale até fechar o
   // app. Música sem capa cai na mesa de samba.
@@ -1872,10 +1964,8 @@
       if (S.bgMedia.tagName === 'VIDEO') S.bgMedia.play().catch(() => {});
     }
     if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
-    S.chordIdx = -2;
     resetLyrics();
-    tick();
-    loadStrip();
+    setShowView(savedShowView());
   }
 
   function closeShow() {
@@ -1890,11 +1980,8 @@
     S.homeScene.paused = false;
     if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
     $('#show').hidden = true;
-    $('#osmdShow').innerHTML = '';
-    $('#stripMarks').innerHTML = '';
-    $('#stripTrack').querySelectorAll('.strip-chunk').forEach((c) => c.remove());
-    S.strip = null;
-    S.stripToken = (S.stripToken || 0) + 1; // cancela uma montagem em andamento
+    S.hw.stop();
+    clearStrip();
   }
 
   function endGame() {
@@ -1935,6 +2022,7 @@
       applyMix();
     }
     if (S.gameOn) S.game.reset();
+    if (S.showView === 'pista') { hwPickInst(); S.chordIdx = -2; } // jogo de melodia: a pista da voz
     $('#showScore').hidden = !S.gameOn;
     $('#hudHeard').hidden = !(S.gameOn && S.game.mode === 'melody');
     $('#stripMarks').innerHTML = '';
@@ -1981,6 +2069,7 @@
     void fb.offsetWidth; // reinicia a animação
     fb.classList.add('pop');
     addMark(b0, b1, res.result);
+    S.hwFlash = { result: res.result, at: performance.now() }; // a linha da pista pisca
     if (res.combo && res.combo % 8 === 0) S.stage.burst(res.combo >= 16 ? 180 : 110);
     updateScoreHud();
   }
@@ -3562,6 +3651,19 @@
     $('#btnShow').onclick = openShow;
     $('#btnShowClose').onclick = closeShow;
     $('#btnShowExit').onclick = closeShow;
+    S.hw = new Pista.Highway($('#hwCanvas'), hwSource);
+    S.track = new Pista.Highway($('#trackCanvas'), trackSource, { orient: 'h' });
+    S.track.start();
+    $('#viewPista').onclick = () => setShowView('pista', true);
+    $('#viewPartitura').onclick = () => setShowView('partitura', true);
+    $('#hwInsts').onclick = (e) => {
+      const bt = e.target.closest('button[data-inst]');
+      if (!bt) return;
+      S.hwInst = bt.dataset.inst;
+      renderHwInsts();
+      S.chordIdx = -2; // o desenho do acorde troca de instrumento junto
+      tick();
+    };
     $('#btnShowStart').onclick = () => startShow(null);
     $('#btnShowChords').onclick = () => startShow('chords');
     $('#btnShowMelody').onclick = () => startShow('melody');
@@ -3623,7 +3725,7 @@
     const phoneMq = window.matchMedia('(max-width: 700px)');
     const placeHand = () => {
       const hc = $('#handCard');
-      if (phoneMq.matches) document.querySelector('#viewPlayer .now').after(hc);
+      if (phoneMq.matches) $('#trackCard').after(hc);
       else document.querySelector('.sidebar').appendChild(hc);
     };
     if (phoneMq.addEventListener) phoneMq.addEventListener('change', placeHand);
